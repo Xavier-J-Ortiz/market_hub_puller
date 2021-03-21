@@ -24,7 +24,7 @@ def market_p1_data(region_hubs):
 
 def market_data_fetch(region_hubs, raw_data):
   for region in region_hubs:
-    for page in range(1, int(region[2]) + 1):
+    for page in range(2, int(region[2]) + 1):
       url = url_base + region[0] + url_end + str(page)
       answer = http.request('GET', url)
       new_data = json.loads(answer.data)
