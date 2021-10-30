@@ -1,4 +1,4 @@
-import json, os
+import json, os, pickle
 from requests.exceptions import HTTPError, RequestException
 from requests_futures.sessions import FuturesSession
 from concurrent.futures import as_completed
@@ -18,17 +18,34 @@ url_end = '/orders/?datasource=tranquility&order_type=all&page='
 
 region_hubs = [Jita,Amarr,Dodixie,Rens,Hek]
 
-def create_page1_market_region_futures(region_hubs):
-  raw_data = {}
-  futures = []
+def create_page1_urls(region_hubs, urls):
   for region in region_hubs:
-    url = create_url(region[0], '1')
-    future =  session.get(url)
-    future.region_hub = region
+    url = [create_url(region[0], '1'), region[0]]
+    urls.append(url)
+  return urls
+
+def create_all_market_order_urls(region_hubs, orders_in_regions):
+  urls = []
+  if len(orders_in_regions.keys()) == 0:
+    urls = create_page1_urls(region_hubs, urls)
+    return urls
+  for region in region_hubs:
+    pages = int(orders_in_regions[region[0]]['pages'])
+    for page in range(2, pages + 1):
+      url = [create_url(region[0], str(page)), region[0]]
+      urls.append(url)
+  return urls
+
+def create_market_order_futures(urls):
+  futures = []
+  for url in urls:
+    region = url[1]
+    future = session.get(url[0])
+    future.region_id = region
     futures.append(future)
   return futures
 
-def get_page1_market_region_results(futures, redo_region_hub, error_write):
+def get_regions_markets_results(futures, orders_in_regions, redo_urls, error_write):
   for response in as_completed(futures):
     result = response.result()
     try:
@@ -40,58 +57,55 @@ def get_page1_market_region_results(futures, redo_region_hub, error_write):
     except HTTPError:
       error_write.write('Received status code {} from {} With headers:\n{}\n'.format(result.status_code, result.url, str(result.headers)))
       if 'x-esi-error-limit-remain' in result.headers:
-          error_limit_remaining = result.headers['x-esi-error-limit-remain']
-          error_limit_time_to_reset = result.headers['x-esi-error-limit-reset']
-          error_write.write('Error Limit Remaing: {} Limit-Rest {} \n'.format(error_limit_remaining, error_limit_time_to_reset))
+        error_limit_remaining = result.headers['x-esi-error-limit-remain']
+        error_limit_time_to_reset = result.headers['x-esi-error-limit-reset']
+        error_write.write('Error Limit Remaing: {} Limit-Rest {} \n'.format(error_limit_remaining, error_limit_time_to_reset))
       error_write.write("\n")
-      redo_region_hub.append(response.region_hub)
+      redo_url = [result.url, response.region_id]
+      redo_urls.append(redo_url)
       continue
     except RequestException as e: 
-      error_write.write("other error is " + e + "\n")
+      error_write.write("other error is " + e + " from " + result.url)
       continue
     orders = json.loads(result.text)
-    total_pages = result.headers["x-pages"]
-    raw_data[response.region_hub[0]] = {
-      'orders': orders,
-      'pages': total_pages
-      }
-  return raw_data, redo_region_hub
+    if response.region_id in orders_in_regions:
+      orders_in_regions[response.region_id]['orders'] += orders
+    else:
+      total_pages = result.headers["x-pages"]
+      orders_in_regions[response.region_id] = {
+        'orders': orders,
+        'pages': total_pages
+        }
+  return orders_in_regions, redo_urls
 
-def get_page1_market_region_data(region_hubs, raw_data, error_write):
-  redo_region_hub = []
-  futures = create_page1_market_region_futures(region_hubs)
-  raw_data, redo_region_hub = get_page1_market_region_results(futures, redo_region_hub, error_write)
-  if len(redo_region_hub) != 0:
-    # recursion - need to think if futures need to be re-created, if futures that need to be redone can 
-    # be separated... maybe can be optimized
-    raw_data = get_page1_market_region_data(redo_region_hub, raw_data, error_write)
-  return raw_data
-    
-def create_market_order_futures(region_hubs):
-  futures = {}
-  return futures
-
-def get_market_order_results():
-  results = 1
-  return results
-
-def get_market_orders():
-  market_orders = {}
-  return market_orders
+def get_region_market_orders(urls, orders_in_regions, error_write):
+  redo_urls = []
+  futures = create_market_order_futures(urls)
+  orders_in_regions, redo_urls = get_regions_markets_results(futures, orders_in_regions, redo_urls, error_write)
+  if len(redo_urls) != 0:
+    orders_in_regions = get_region_market_orders(redo_urls, orders_in_regions, error_write)
+  return orders_in_regions
 
 def create_url(region_id, page):
   return url_base + region_id + url_end + page
 
-def market_data_fetch(region_hubs, raw_data):
-  return raw_data
- 
-
-raw_data = {}
-if not os.path.isdir('./data/error'):
-  os.makedirs('./data/error') 
+orders_in_regions = {}
+if not os.path.isdir('./errors'):
+  os.makedirs('./errors') 
   print("error directory created")
-error_write = open('./data/error/order.txt','w+')
-#raw_data, redo_region_hub = get_page1_market_region_results(futures, region_hubs, redo_region_hub, error_write)
-get_page1_market_region_data(region_hubs, raw_data, error_write)
-print(str(len(raw_data[Jita[0]]['orders'])) + ", " + str(len(raw_data[Amarr[0]]['orders'])) + ", " + str(len(raw_data[Dodixie[0]]['orders'])) + ", " + str(len(raw_data[Rens[0]]['orders'])) + ", " + str(len(raw_data[Hek[0]]['orders'])))
-print(str((raw_data[Jita[0]]['pages'])) + ", " + str((raw_data[Amarr[0]]['pages'])) + ", " + str((raw_data[Dodixie[0]]['pages'])) + ", " + str((raw_data[Rens[0]]['pages'])) + ", " + str((raw_data[Hek[0]]['pages'])))
+error_write = open('./errors/order.txt','w+')
+page1_urls = create_all_market_order_urls(region_hubs, orders_in_regions)
+orders_in_regions = get_region_market_orders(page1_urls, orders_in_regions, error_write)
+
+rest_of_urls = create_all_market_order_urls(region_hubs, orders_in_regions)
+orders_in_regions = get_region_market_orders(rest_of_urls, orders_in_regions, error_write)
+
+if not os.path.isdir('./data/orders'):
+  os.makedirs('./data/orders') 
+  print("orders directory created")
+highsec_orders = open('./data/orders/orders.pkl', 'wb')
+pickle.dump(orders_in_regions, highsec_orders)
+highsec_orders.close
+
+print(str(len(orders_in_regions[Jita[0]]['orders'])) + ", " + str(len(orders_in_regions[Amarr[0]]['orders'])) + ", " + str(len(orders_in_regions[Dodixie[0]]['orders'])) + ", " + str(len(orders_in_regions[Rens[0]]['orders'])) + ", " + str(len(orders_in_regions[Hek[0]]['orders'])))
+print(str((orders_in_regions[Jita[0]]['pages'])) + ", " + str((orders_in_regions[Amarr[0]]['pages'])) + ", " + str((orders_in_regions[Dodixie[0]]['pages'])) + ", " + str((orders_in_regions[Rens[0]]['pages'])) + ", " + str((orders_in_regions[Hek[0]]['pages'])))
