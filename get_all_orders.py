@@ -18,9 +18,13 @@ url_end = '/orders/?datasource=tranquility&order_type=all&page='
 
 region_hubs = [Jita,Amarr,Dodixie,Rens,Hek]
 
+def create_url(region_id, page, url_base, url_end):
+  return url_base + region_id + url_end + page
+
 def create_page1_urls(region_hubs, urls):
   for region in region_hubs:
-    url = [create_url(region[0], '1'), region[0]]
+    page1_url = create_url(region[0], '1', url_base, url_end)
+    url = [page1_url, region[0]]
     urls.append(url)
   return urls
 
@@ -32,7 +36,7 @@ def create_all_market_order_urls(region_hubs, orders_in_regions):
   for region in region_hubs:
     pages = int(orders_in_regions[region[0]]['pages'])
     for page in range(2, pages + 1):
-      url = [create_url(region[0], str(page)), region[0]]
+      url = [create_url(region[0], str(page), url_base, url_end), region[0]]
       urls.append(url)
   return urls
 
@@ -74,7 +78,8 @@ def get_regions_markets_results(futures, orders_in_regions, redo_urls, error_wri
       total_pages = result.headers["x-pages"]
       orders_in_regions[response.region_id] = {
         'orders': orders,
-        'pages': total_pages
+        'pages': total_pages,
+        'active_items_list': []
         }
   return orders_in_regions, redo_urls
 
@@ -86,8 +91,6 @@ def get_region_market_orders(urls, orders_in_regions, error_write):
     orders_in_regions = get_region_market_orders(redo_urls, orders_in_regions, error_write)
   return orders_in_regions
 
-def create_url(region_id, page):
-  return url_base + region_id + url_end + page
 
 orders_in_regions = {}
 if not os.path.isdir('./errors'):
