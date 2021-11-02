@@ -8,25 +8,13 @@ from concurrent.futures import as_completed
 
 session = FuturesSession(max_workers=200)
 
-# High sec market hubs only, [RegionID, StationID]
-
-Jita = ['10000002', '60003760']  # The Forge
-Amarr = ['10000043', '60008494']  # Domain
-Dodixie = ['10000032', '60011866']  # Sinq Liason
-Rens = ['10000030', '60004588']  # Heimatar
-Hek = ['10000042', '60005686']  # Metropolis
-
-url_base = 'https://esi.evetech.net/latest/markets/'
-url_end = '/types/?datasource=tranquility&page='
-
-region_hubs = [Jita, Amarr, Dodixie, Rens, Hek]
-
-
 def create_url(region_id, page, url_base, url_end):
   return url_base + region_id + url_end + page
 
 
 def create_page1_urls(region_hubs, urls):
+  url_base = 'https://esi.evetech.net/latest/markets/'
+  url_end = '/types/?datasource=tranquility&page='
   for region in region_hubs:
     page1_url = create_url(region[0], '1', url_base, url_end)
     url = [page1_url, region[0]]
@@ -35,6 +23,8 @@ def create_page1_urls(region_hubs, urls):
 
 
 def create_all_active_item_urls(region_hubs, active_items):
+  url_base = 'https://esi.evetech.net/latest/markets/'
+  url_end = '/types/?datasource=tranquility&page='
   urls = []
   if len(active_items.keys()) == 0:
     urls = create_page1_urls(region_hubs, urls)
@@ -101,24 +91,3 @@ def get_region_active_items(urls, active_items, error_write):
     active_items = get_region_active_items(
         redo_urls, active_items, error_write)
   return active_items
-
-active_items = {}
-if not os.path.isdir('./errors'):
-  os.makedirs('./errors') 
-  print("error directory created")
-error_write = open('./errors/active_items.txt','w+')
-page1_urls =  create_all_active_item_urls(region_hubs, active_items)
-active_items = get_region_active_items(page1_urls, active_items, error_write)
-
-rest_of_urls = create_all_active_item_urls(region_hubs, active_items)
-active_items =  get_region_active_items(rest_of_urls, active_items, error_write)
-
-if not os.path.isdir('./data/orders'):
-  os.makedirs('./data/orders') 
-  print("orders directory created")
-highsec_active_orders = open('./data/orders/active_orders.pkl', 'wb')
-pickle.dump(active_items, highsec_active_orders)
-highsec_active_orders.close
-
-print(str(len(active_items[Jita[0]]['items'])) + ", " + str(len(active_items[Amarr[0]]['items'])) + ", " + str(len(active_items[Dodixie[0]]['items'])) + ", " + str(len(active_items[Rens[0]]['items'])) + ", " + str(len(active_items[Hek[0]]['items'])))
-print(str((active_items[Jita[0]]['pages'])) + ", " + str((active_items[Amarr[0]]['pages'])) + ", " + str((active_items[Dodixie[0]]['pages'])) + ", " + str((active_items[Rens[0]]['pages'])) + ", " + str((active_items[Hek[0]]['pages'])))
