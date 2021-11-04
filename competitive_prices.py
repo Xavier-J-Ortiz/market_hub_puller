@@ -44,7 +44,7 @@ def get_high_low_prices(region_hubs, orders_in_regions):
     for region in regions:
         for region_hub_data in region_hubs:
             if region in region_hub_data:
-                hubs = region_hub_data
+                hubs = region_hub_data.copy()
                 hubs.remove(region)
         all_regional_orders = orders_in_regions[region]['orders']
         for hub in hubs:
@@ -75,21 +75,3 @@ def get_high_low_prices(region_hubs, orders_in_regions):
     pickle.dump(current_price_info, high_low)
     high_low.close
     return current_price_info
-        
-
-
-
-            
-
-'''        
-orders_in_regions = get_order_info(region_hubs)
-#orders_in_regions = pickle.load(open("./data/orders/orders.pkl","rb"))
-high_low_prices = get_high_low_prices(region_hubs, orders_in_regions)
-#print(high_low_prices['60003760']['48746']) # jita Overmind Goliath
-#print(high_low_prices['60003760']['34']) # jita trit
-#print(high_low_prices['60003760']['20509']) # jita HG Amulet Omega
-#print(high_low_prices['60008494']['48746']) # amarr Overmind Goliath
-#print(high_low_prices['60008494']['34']) # amarr trit
-#print(high_low_prices['60008494']['20509']) # amarr HG Amulet Omega
-
-'''
