@@ -129,7 +129,7 @@ def get_high_low_prices(region_hubs, orders_in_regions):
 
 
 
-    return current_price_info, unique_order_items_names
+    return current_price_info
 
 def create_names_future(ids):
     if len(ids) <= 1000:
