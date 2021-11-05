@@ -77,7 +77,8 @@ def get_high_low_prices(region_hubs, orders_in_regions):
             os.makedirs('./errors') 
             print("error directory created")
         error_write = open('./errors/hub_ids.txt','w+')
-        hub_ids = get_hub_ids(all_hub_names, error_write)
+        hub_ids = list(all_hub_names.keys())
+        hub_data = get_hub_ids(hub_ids, all_hub_names, error_write)
         for i in range(0, len(hub_ids)):
             all_hub_names[hub_ids[i]] = hub_data[i]['name']
             current_price_info[hub_ids[i]]['name'] = hub_data[i]['name']
@@ -158,8 +159,7 @@ def create_names_future(ids):
         futures.append(session.post(url, json=id_segment, headers=header))
     return futures
 
-def get_hub_ids(all_hub_names, error_write):
-    hub_ids = list(all_hub_names.keys())
+def get_hub_ids(hub_ids, all_hub_names, error_write):
     all_hub_names_future = create_names_future(hub_ids)
     result = all_hub_names_future.result()
     try:
