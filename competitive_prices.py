@@ -48,12 +48,17 @@ def get_high_low_prices(region_hubs, orders_in_regions):
     all_hub_names = {}
     unique_order_items_names = {}
     for region in regions:
+        hubs = []
         for region_hub_data in region_hubs:
             if region in region_hub_data:
                 hubs = region_hub_data.copy()
                 hubs.remove(region)
+                #print(hubs)
         all_regional_orders = orders_in_regions[region]['orders']
+        #print(hubs)
         for hub in hubs:
+            #print(hub)
+            #print(hubs)
             all_hub_names[hub] = ''
             current_price_info[hub] = {}
             active_items = orders_in_regions[region]['active_items_list']
@@ -64,7 +69,10 @@ def get_high_low_prices(region_hubs, orders_in_regions):
                     'lowest_sell': positive_infinity,
                     'highest_buy': negative_infinity
                 }
-
+                #if hub == "60003760":
+                #    unique_order_items_names[str(item)] = ''
+                unique_order_items_names[str(item)] = ''
+            #print(f"Hub {hub}, hub_current_price length {len(current_price_info[hub])}")
         hub_ids = list(all_hub_names.keys())
         all_hub_names_future = create_names_future(hub_ids)
         response = all_hub_names_future.result()
@@ -78,23 +86,39 @@ def get_high_low_prices(region_hubs, orders_in_regions):
             if hub in hubs:
                 order_item_id = str(order['type_id'])
                 order_price = order['price']
-                if order_item_id not in unique_order_items_names:
-                    unique_order_items_names[order_item_id] = ''
                 if order['is_buy_order']:
                     current_highest_buy = current_price_info[hub][order_item_id]['highest_buy'] 
                     current_price_info[hub][order_item_id]['highest_buy']  = order_price if order_price > current_highest_buy else current_highest_buy
                 else:
                     current_lowest_sell = current_price_info[hub][order_item_id]['lowest_sell'] 
                     current_price_info[hub][order_item_id]['lowest_sell']  = order_price if order_price < current_lowest_sell else current_lowest_sell
-    item_name_futures = create_names_future(list(unique_order_items_names))
+    #print(len(unique_order_items_names))
+    #print(type(list(unique_order_items_names.keys())[0]))
+    item_name_futures = create_names_future(list(unique_order_items_names.keys()))
+    #print(len(item_name_futures))
 
     for item_name_future in as_completed(item_name_futures):
         response = item_name_future.result()
         item_data = json.loads(response.text)
         for item_entry in item_data:
+            #print(len(item_entry))
             #print(item_entry)
             #print(item_entry['name'])
             unique_order_items_names[str(item_entry['id'])] = item_entry['name']
+    
+    #print(len(unique_order_items_names))
+    #print(type(list(unique_order_items_names.keys())[-1]))
+    for hub in current_price_info:
+        #print(hub)
+        current_hub_price_info = current_price_info[hub]
+        for item in current_hub_price_info:
+            #if item != 'name' and (item in current_hub_price_info):
+            if item != 'name':
+                #print(item)
+                #print(type(item))
+                #print(unique_order_items_names[item]) # the offender
+                #print(current_hub_price_info[item])
+                current_hub_price_info[item]['name'] = unique_order_items_names[item]
 
     if not os.path.isdir('./data/orders'):
         os.makedirs('./data/orders') 
@@ -102,6 +126,8 @@ def get_high_low_prices(region_hubs, orders_in_regions):
     high_low = open('./data/orders/high_low.pkl', 'wb')
     pickle.dump(current_price_info, high_low)
     high_low.close
+
+
 
     return current_price_info, unique_order_items_names
 
