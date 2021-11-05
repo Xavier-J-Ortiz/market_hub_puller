@@ -1,16 +1,15 @@
 import pickle, get_active_items, get_all_orders, os, json
+from requests.exceptions import HTTPError, RequestException
 from requests_futures.sessions import FuturesSession
 from concurrent.futures import as_completed
-
+'''
 Jita = ['10000002','60003760'] # The Forge
 Amarr = ['10000043','60008494'] # Domain
 Dodixie = ['10000032','60011866'] # Sinq Liason
 Rens = ['10000030','60004588'] # Heimatar
 Hek = ['10000042','60005686'] # Metropolis
 region_hubs = [Jita,Amarr,Dodixie,Rens,Hek]
-
-session = FuturesSession(max_workers=200)
-
+'''
 def get_order_info(region_hubs):
     active_items = {}
     if not os.path.isdir('./errors'):
@@ -73,10 +72,12 @@ def get_high_low_prices(region_hubs, orders_in_regions):
                 #    unique_order_items_names[str(item)] = ''
                 unique_order_items_names[str(item)] = ''
             #print(f"Hub {hub}, hub_current_price length {len(current_price_info[hub])}")
-        hub_ids = list(all_hub_names.keys())
-        all_hub_names_future = create_names_future(hub_ids)
-        response = all_hub_names_future.result()
-        hub_data = json.loads(response.text)
+        #
+        if not os.path.isdir('./errors'):
+            os.makedirs('./errors') 
+            print("error directory created")
+        error_write = open('./errors/hub_ids.txt','w+')
+        hub_ids = get_hub_ids(all_hub_names, error_write)
         for i in range(0, len(hub_ids)):
             all_hub_names[hub_ids[i]] = hub_data[i]['name']
             current_price_info[hub_ids[i]]['name'] = hub_data[i]['name']
@@ -132,6 +133,7 @@ def get_high_low_prices(region_hubs, orders_in_regions):
     return current_price_info
 
 def create_names_future(ids):
+    session = FuturesSession(max_workers=200)
     if len(ids) <= 1000:
 
         url = 'https://esi.evetech.net/latest/universe/names/?datasource=tranquility'
@@ -155,3 +157,29 @@ def create_names_future(ids):
             }
         futures.append(session.post(url, json=id_segment, headers=header))
     return futures
+
+def get_hub_ids(all_hub_names, error_write):
+    hub_ids = list(all_hub_names.keys())
+    all_hub_names_future = create_names_future(hub_ids)
+    result = all_hub_names_future.result()
+    try:
+        error_limit_remaining = result.headers['x-esi-error-limit-remain']
+        if error_limit_remaining != "100":
+            error_limit_time_to_reset = result.headers['x-esi-error-limit-reset']
+            error_write.write('INFORMATIONAL: Though no error, for {} the Error Limit Remaning: {} Limit-Rest {} \n\n'.format(
+                result.url, error_limit_remaining, error_limit_time_to_reset))
+    except HTTPError:
+        error_write.write('Received status code {} from {} With headers:\n{}\n'.format(
+            result.status_code, result.url, str(result.headers)))
+        if 'x-esi-error-limit-remain' in result.headers:
+            error_limit_remaining = result.headers['x-esi-error-limit-remain']
+            error_limit_time_to_reset = result.headers['x-esi-error-limit-reset']
+            error_write.write('Error Limit Remaing: {} Limit-Rest {} \n'.format(
+                error_limit_remaining, error_limit_time_to_reset))
+        error_write.write("\n")
+        redo_all_hub_names = all_hub_names
+        get_hub_ids(all_hub_names, error_write)
+    except RequestException as e:
+        error_write.write("other error is " + e + " from " + result.url)
+    hub_data = json.loads(result.text)
+    return hub_data 

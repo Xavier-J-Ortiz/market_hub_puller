@@ -1,7 +1,5 @@
 from concurrent import futures
 import json
-import os
-import pickle
 from requests.exceptions import HTTPError, RequestException
 from requests_futures.sessions import FuturesSession
 from concurrent.futures import as_completed
@@ -85,8 +83,7 @@ def get_region_active_items_results(futures, active_items, redo_urls, error_writ
 def get_region_active_items(urls, active_items, error_write):
   redo_urls = []
   futures = create_active_item_futures(urls)
-  active_items, redo_urls = get_region_active_items_results(
-      futures, active_items, redo_urls, error_write)
+  active_items, redo_urls = get_region_active_items_results(futures, active_items, redo_urls, error_write)
   if len(redo_urls) != 0:
     active_items = get_region_active_items(
         redo_urls, active_items, error_write)
