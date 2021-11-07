@@ -71,24 +71,10 @@ def create_hub_data(region_hubs, high_low_prices):
 
 
 orders_in_regions = competitive_prices.get_order_info(region_hubs)
-#orders_in_regions = pickle.load(open("./data/orders/orders.pkl","rb"))
 high_low_prices  = competitive_prices.get_high_low_prices(region_hubs, orders_in_regions)
-#print(high_low_prices['60003760']['48746']) # jita Overmind Goliath
-#print(high_low_prices['60003760']['34']) # jita trit
-#print(high_low_prices['60003760']['20509']) # jita HG Amulet Omega
-#print(high_low_prices['60008494']['48746']) # amarr Overmind Goliath
-#print(high_low_prices['60008494']['34']) # amarr trit
-#print(high_low_prices['60008494']['20509']) # amarr HG Amulet Omega
-#print(region_hubs)
-#print(high_low_prices)
 profit_data = create_hub_data(region_hubs, high_low_prices)
 for key in profit_data:
     print(profit_data[key]['name'])
 
 print(profit_data['60008494']['20509'])
 print(profit_data['60008494']['name'])
-#print(len(unique_order_items_names))
-#futures = competitive_prices.create_names_future(list(unique_order_items_names.keys()))
-#print(len(futures))
-#print(futures[0])
-#print(futures[15])

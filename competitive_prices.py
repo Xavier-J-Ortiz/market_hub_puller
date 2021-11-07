@@ -92,7 +92,6 @@ def get_high_low_prices(region_hubs, orders_in_regions):
         print("error directory created")
     error_write = open('./errors/item_name.txt','w+')
     unique_order_items_names = get_item_name(item_name_futures, unique_order_items_names, error_write)
-
     for hub in current_price_info:
         current_hub_price_info = current_price_info[hub]
         for item in current_hub_price_info:
@@ -107,6 +106,7 @@ def get_high_low_prices(region_hubs, orders_in_regions):
     return current_price_info
 
 def get_item_name(item_name_futures, unique_order_items_names, error_write):
+    redo_item_name = []
     for item_name_future in as_completed(item_name_futures):
         result = item_name_future.result()
         try:
@@ -124,12 +124,14 @@ def get_item_name(item_name_futures, unique_order_items_names, error_write):
                 error_write.write('Error Limit Remaing: {} Limit-Rest {} \n'.format(
                     error_limit_remaining, error_limit_time_to_reset))
             error_write.write("\n")
-            #get_hub_ids(all_hub_names, error_write) # recursion
+            redo_item_name.append(item_name_future)
         except RequestException as e:
             error_write.write("other error is " + e + " from " + result.url)
         item_data = json.loads(result.text)
         for item_entry in item_data:
             unique_order_items_names[str(item_entry['id'])] = item_entry['name']
+        if len(redo_item_name) != 0:
+            get_item_name(redo_item_name, unique_order_items_names,error_write)
     return unique_order_items_names
 
 def create_names_future(ids):
