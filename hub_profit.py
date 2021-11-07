@@ -34,18 +34,15 @@ def create_hub_data(region_hubs, high_low_prices):
                 if hub not in profit_data:
                     station_hub_name = high_low_prices[hub]['name']
                     profit_data[hub] = {'name': station_hub_name}
-
                 if item not in sell_hub_orders:
                     hub_sell_value = positive_infinity
                 else:
                     hub_sell_value = sell_hub_orders[item]['lowest_sell']
-                
                 if jsv == negative_infinity:
                     jsv = None
                     profit_from_jsv = None
                 else:
                     profit_from_jsv = 1 - jsv/hub_sell_value
-                
                 if jbv == positive_infinity:
                     jbv = None
                     profit_from_jbv = None
