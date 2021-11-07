@@ -131,7 +131,8 @@ def get_item_name(item_name_futures, unique_order_items_names, error_write):
         for item_entry in item_data:
             unique_order_items_names[str(item_entry['id'])] = item_entry['name']
         if len(redo_item_name) != 0:
-            get_item_name(redo_item_name, unique_order_items_names,error_write)
+            redo_item_name_futures = create_names_future(redo_item_name)
+            get_item_name(redo_item_name_futures, unique_order_items_names, error_write)
     return unique_order_items_names
 
 def create_names_future(ids):
