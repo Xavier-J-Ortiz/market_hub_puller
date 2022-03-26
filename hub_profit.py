@@ -66,7 +66,6 @@ def create_hub_data(region_hubs, high_low_prices):
     hub_profits.close
     return profit_data
 
-
 orders_in_regions = competitive_prices.get_order_info(region_hubs)
 high_low_prices  = competitive_prices.get_high_low_prices(region_hubs, orders_in_regions)
 profit_data = create_hub_data(region_hubs, high_low_prices)
@@ -74,4 +73,5 @@ for key in profit_data:
     print(profit_data[key]['name'])
 
 print(profit_data['60008494']['20509'])
-print(profit_data['60008494']['name'])
+print(profit_data['60011866']['31248'])
+print(profit_data['60011866']['31248']['name'])
