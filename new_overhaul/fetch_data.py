@@ -1,4 +1,3 @@
-
 from concurrent import futures
 import json
 from requests.exceptions import HTTPError, RequestException
@@ -7,10 +6,16 @@ from concurrent.futures import as_completed
 
 session = FuturesSession(max_workers=200)
 
-def create_all_order_url(region, page):
+def create_all_order_url(region, page_number):
   url_base = 'https://esi.evetech.net/latest/markets/'
   url_end = '/orders/?datasource=tranquility&order_type=all&page='
-  url = url_base + str(region) + url_end + str(page)
+  url = url_base + str(region) + url_end + str(page_number)
+  return url
+
+def create_active_items_url(region, page_number):
+  url_base = 'https://esi.evetech.net/latest/markets/'
+  url_end = '/types/?datasource=tranquility&page='
+  url = url_base + str(region) + url_end + str(page_number)
   return url
 
 def create_futures(urls):
@@ -50,10 +55,10 @@ def pull_results(futures):
     results.append(result)
   return results, redo_urls
 
-def pull_all_orders(region, redo_urls):
+def pull_all_data(region, redo_urls, func):
   if len(redo_urls) == 0:
     active_items=[]
-    p1_url = [create_all_order_url(region, 1)]
+    p1_url = [func(region, 1)]
     p1_future = create_futures(p1_url)
     p1_result, redo_urls = pull_results(p1_future)
     while len(redo_urls) != 0:
@@ -66,7 +71,7 @@ def pull_all_orders(region, redo_urls):
   if len(redo_urls) == 0:
     urls = []
     for page in range (2, total_pages + 1):
-      url = create_all_order_url(region, str(page))
+      url = func(region, str(page))
       urls.append(url)
     pages_futures = create_futures(urls) 
     pages_results, redo_urls = pull_results(pages_futures)
@@ -80,40 +85,62 @@ def pull_all_orders(region, redo_urls):
         active_item = json.loads(result.text)
         active_items += active_item
   return active_items, redo_urls 
+'''
+print(create_active_items_url(10000002, 1))
+#
+p1_url = [create_active_items_url(10000002, 1)]
+p1_future = create_futures(p1_url)
+p1_results, redo_urls = pull_results(p1_future)
+p1_active_items = json.loads(p1_results[0].text)
+p1_total_pages = p1_results[0].headers['x-pages']
+print(len(p1_active_items), redo_urls, p1_total_pages)
+#
+urls = [create_active_items_url(10000002, 1), create_active_items_url(10000002, 2), create_active_items_url(10000002, 3)]
+active_item_futures = create_futures(urls)
+results, redo_urls = pull_results(active_item_futures)
+active_items = results[0].text + results[1].text + results[2].text
+total_pages = results[0].headers['x-pages']
+print(len(active_items), redo_urls,total_pages)
+#
+active_items, redo_urls = pull_all_data(10000002, [], create_active_items_url)
+print(len(active_items) == len(active_items))
+print('\n')
+print(len(active_items))
+print('\n')
+print(redo_urls)
 
 #########
-#print(create_all_order_url(10000002, 1))
+print(create_all_order_url(10000002, 1))
 #
-##p1_url = [create_all_order_url(10000002, 1)]
-##p1_future = create_futures(p1_url)
-##p1_results, redo_urls = pull_results(p1_future)
-##p1_orders = p1_results[0].text
-##p1_total_pages = p1_results[0].headers['x-pages']
-##print(p1_orders, redo_urls, p1_total_pages)
+p1_url = [create_all_order_url(10000002, 1)]
+p1_future = create_futures(p1_url)
+p1_results, redo_urls = pull_results(p1_future)
+p1_orders = p1_results[0].text
+p1_total_pages = p1_results[0].headers['x-pages']
+print(len(p1_orders), redo_urls, p1_total_pages)
 #
-##urls = [create_all_order_url(10000002, 1), create_all_order_url(10000002, 2), create_all_order_url(10000002, 3)]
-##active_item_futures = create_futures(urls)
-##results, redo_urls = pull_results(active_item_futures)
-##active_items = json.loads(results[0].text) + json.loads(results[1].text) + json.loads(results[2].text)
-##total_pages = results[0].headers['x-pages']
-##print(len(active_items), redo_urls,total_pages)
+urls = [create_all_order_url(10000002, 1), create_all_order_url(10000002, 2), create_all_order_url(10000002, 3)]
+active_item_futures = create_futures(urls)
+results, redo_urls = pull_results(active_item_futures)
+active_items = json.loads(results[0].text) + json.loads(results[1].text) + json.loads(results[2].text)
+total_pages = results[0].headers['x-pages']
+print(len(active_items), redo_urls,total_pages)
 #
-'''
-for i in range(1, 100):
-    orders_forge, redo_urls_forge = pull_all_orders(10000002, [])
+for i in range(1, 2):
+    orders_forge, redo_urls_forge = pull_all_data(10000002, [], create_all_order_url)
     order_ids = []
     for order in orders_forge:
-        order_ids.append(order['order_id'])
+      order_ids.append(order['order_id'])
     print(len(orders_forge) == len(set(order_ids)))
     print('\n')
     print(len(orders_forge))
     print('\n')
     print(redo_urls_forge)
 
-    orders_domain, redo_urls_domain = pull_all_orders(10000043, [])
+    orders_domain, redo_urls_domain = pull_all_data(10000043, [], create_all_order_url)
     order_ids = []
     for order in orders_domain:
-        order_ids.append(order['order_id'])
+      order_ids.append(order['order_id'])
     print(len(orders_domain) == len(set(order_ids)))
     print('\n')
     print(len(orders_domain))
@@ -121,10 +148,10 @@ for i in range(1, 100):
     print(redo_urls_domain)
 
 
-    orders_sinq, redo_urls_sinq = pull_all_orders(10000032, [])
+    orders_sinq, redo_urls_sinq = pull_all_data(10000032, [], create_all_order_url)
     order_ids = []
     for order in orders_sinq:
-        order_ids.append(order['order_id'])
+      order_ids.append(order['order_id'])
     print(len(orders_sinq) == len(set(order_ids)))
     print('\n')
     print(len(orders_sinq))
@@ -132,20 +159,20 @@ for i in range(1, 100):
     print(redo_urls_sinq)
 
 
-    orders_heimatar, redo_urls_heimatar = pull_all_orders(10000030, [])
+    orders_heimatar, redo_urls_heimatar = pull_all_data(10000030, [], create_all_order_url)
     order_ids = []
     for order in orders_heimatar:
-        order_ids.append(order['order_id'])
+      order_ids.append(order['order_id'])
     print(len(orders_heimatar) == len(set(order_ids)))
     print('\n')
     print(len(orders_heimatar))
     print('\n')
     print(redo_urls_heimatar)
 
-    orders_Metropolis, redo_urls_Metropolis = pull_all_orders(10000042, [])
+    orders_Metropolis, redo_urls_Metropolis = pull_all_data(10000042, [], create_all_order_url)
     order_ids = []
     for order in orders_Metropolis:
-        order_ids.append(order['order_id'])
+      order_ids.append(order['order_id'])
     print(len(orders_Metropolis) == len(set(order_ids)))
     print('\n')
     print(len(orders_Metropolis))
