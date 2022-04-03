@@ -55,7 +55,7 @@ def pull_results(futures):
     results.append(result)
   return results, redo_urls
 
-def pull_all_data(region, redo_urls, func):
+def pull_all_get_date(region, redo_urls, func):
   if len(redo_urls) == 0:
     active_items=[]
     p1_url = [func(region, 1)]
@@ -85,6 +85,37 @@ def pull_all_data(region, redo_urls, func):
         active_item = json.loads(result.text)
         active_items += active_item
   return active_items, redo_urls 
+
+def create_name_urls_json_headers(ids):
+  urls_json_headers = []
+  url = 'https://esi.evetech.net/latest/universe/names/?datasource=tranquility'
+  header = {
+    'accept': 'application/json',
+    'Content-Type': 'application/json',
+    'Cache-Control': 'no-cache'
+    }
+  if len(ids) <= 1000:
+    id_segment = ids
+    urls_json_headers.append([url, id_segment, header])
+    return(urls_json_headers)
+  segmented_ids = []
+  for i in range(0, len(ids), 1000):
+    segmented_ids.append(ids[i: 1000+i])
+  for id_segment in segmented_ids:
+    urls_json_headers.append([url, id_segment, header])
+  return urls_json_headers
+
+def create_post_futures(urls_json_headers):
+  all_futures = []
+  for url_json_header in urls_json_headers:
+    url = url_json_header[0]
+    ids = url_json_header[1]
+    header = url_json_header[2]
+    future = session.post(url, json=ids, headers=header)
+    all_futures.append(future)
+  return all_futures
+
+    
 '''
 print(create_active_items_url(10000002, 1))
 #
@@ -102,7 +133,7 @@ active_items = results[0].text + results[1].text + results[2].text
 total_pages = results[0].headers['x-pages']
 print(len(active_items), redo_urls,total_pages)
 #
-active_items, redo_urls = pull_all_data(10000002, [], create_active_items_url)
+active_items, redo_urls = pull_all_get_date(10000002, [], create_active_items_url)
 print(len(active_items) == len(active_items))
 print('\n')
 print(len(active_items))
@@ -127,7 +158,7 @@ total_pages = results[0].headers['x-pages']
 print(len(active_items), redo_urls,total_pages)
 #
 for i in range(1, 2):
-    orders_forge, redo_urls_forge = pull_all_data(10000002, [], create_all_order_url)
+    orders_forge, redo_urls_forge = pull_all_get_date(10000002, [], create_all_order_url)
     order_ids = []
     for order in orders_forge:
       order_ids.append(order['order_id'])
@@ -137,7 +168,7 @@ for i in range(1, 2):
     print('\n')
     print(redo_urls_forge)
 
-    orders_domain, redo_urls_domain = pull_all_data(10000043, [], create_all_order_url)
+    orders_domain, redo_urls_domain = pull_all_get_date(10000043, [], create_all_order_url)
     order_ids = []
     for order in orders_domain:
       order_ids.append(order['order_id'])
@@ -148,7 +179,7 @@ for i in range(1, 2):
     print(redo_urls_domain)
 
 
-    orders_sinq, redo_urls_sinq = pull_all_data(10000032, [], create_all_order_url)
+    orders_sinq, redo_urls_sinq = pull_all_get_date(10000032, [], create_all_order_url)
     order_ids = []
     for order in orders_sinq:
       order_ids.append(order['order_id'])
@@ -159,7 +190,7 @@ for i in range(1, 2):
     print(redo_urls_sinq)
 
 
-    orders_heimatar, redo_urls_heimatar = pull_all_data(10000030, [], create_all_order_url)
+    orders_heimatar, redo_urls_heimatar = pull_all_get_date(10000030, [], create_all_order_url)
     order_ids = []
     for order in orders_heimatar:
       order_ids.append(order['order_id'])
@@ -169,7 +200,7 @@ for i in range(1, 2):
     print('\n')
     print(redo_urls_heimatar)
 
-    orders_Metropolis, redo_urls_Metropolis = pull_all_data(10000042, [], create_all_order_url)
+    orders_Metropolis, redo_urls_Metropolis = pull_all_get_date(10000042, [], create_all_order_url)
     order_ids = []
     for order in orders_Metropolis:
       order_ids.append(order['order_id'])
@@ -179,3 +210,26 @@ for i in range(1, 2):
     print('\n')
     print(redo_urls_Metropolis)
 '''
+#
+##output_1 = create_name_urls_json_headers([2,3,5,10])
+##print(output_1)
+##print(len(output_1))
+##all_futures_1 = create_post_futures(output_1)
+##print(all_futures_1)
+##item_names_1 = pull_results(all_futures_1)
+##print(item_names_1[0][0].text)
+#
+# got a list of valid IDs from here: https://www.fuzzwork.co.uk/dump/latest/invTypes.csv.bz2
+# Removed because too big to list at bottom
+## output_2 = create_name_urls_json_headers(ids)
+##print(output_2)
+## all_futures = create_post_futures(output_2)
+## print(all_futures)
+##item_names = pull_results(all_futures)
+##print(item_names)
+##print(item_names[0][0].text)
+##print(len(json.loads(item_names[0][0].text))) # item_names[is the redo-url]
+##print(len(json.loads(item_names[0][1].text)))
+##print(len(json.loads(item_names[0][2].text)))
+##print(len(json.loads(item_names[0][3].text)))
+##print(len(json.loads(item_names[0][3].text)))
