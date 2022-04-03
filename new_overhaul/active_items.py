@@ -6,7 +6,7 @@ from concurrent.futures import as_completed
 
 session = FuturesSession(max_workers=200)
 
-def create_url(region, page):
+def create_active_order_url(region, page):
   url_base = 'https://esi.evetech.net/latest/markets/'
   url_end = '/types/?datasource=tranquility&page='
   url = url_base + str(region) + url_end + str(page)
@@ -21,9 +21,9 @@ def create_futures(urls):
 
 def pull_results(futures):
   results = []
+  redo_urls = []
   for response in as_completed(futures):
     result = response.result() 
-    redo_urls = []
     try:
       result.raise_for_status()
       error_limit_remaining = result.headers['x-esi-error-limit-remain']
@@ -49,21 +49,46 @@ def pull_results(futures):
     results.append(result)
   return results, redo_urls
 
+def pull_all_active_items(region, redo_urls):
+  if len(redo_urls) == 0:
+    active_items=[]
+    p1_url = [create_active_order_url(region, 1)]
+    p1_future = create_futures(p1_url)
+    p1_result, redo_urls = pull_results(p1_future)
+    while len(redo_urls) != 0:
+      p1_future = create_futures(redo_urls)
+      p1_result, redo_urls = pull_results(p1_future)
+    p1_active_items = json.loads(p1_result[0].text)
+    total_pages = int(p1_result[0].headers['x-pages'])
+    active_items += p1_active_items
+
+  if len(redo_urls) == 0:
+    urls = []
+    for page in range (2, total_pages + 1):
+      url = create_active_order_url(region, str(page))
+      urls.append(url)
+    pages_futures = create_futures(urls) 
+    pages_results, redo_urls = pull_results(pages_futures)
+    for result in pages_results:
+      active_item = json.loads(result.text)
+      active_items += active_item
+    while len(redo_urls) != 0:
+      pages_futures = redo_urls
+      pages_results, redo_urls = pull_results(pages_futures)
+      for result in pages_results:
+        active_item = json.loads(result.text)
+        active_items += active_item
+  return active_items, redo_urls 
+
 #########
-##print(create_url(10000002, 1))
+#print(create_active_order_url(10000002, 1))
 #
-##p1_url = create_url(10000002, 1)
-##p1_future = create_future(p1_url)
-##p1_response = p1_future.result()
-##p1_active_items = p1_response.text
-##print(p1_active_items)
-#
-#p1_url = [create_url(10000002, 1)]
-#p1_future = create_futures(p1_url)
-#p1_results, redo_urls = pull_results(p1_future)
-#p1_active_items = p1_results[0].text
-#p1_total_pages = p1_results[0].headers['x-pages']
-#print(p1_active_items, redo_urls, p1_total_pages)
+##p1_url = [create_url(10000002, 1)]
+##p1_future = create_futures(p1_url)
+##p1_results, redo_urls = pull_results(p1_future)
+##p1_active_items = p1_results[0].text
+##p1_total_pages = p1_results[0].headers['x-pages']
+##print(p1_active_items, redo_urls, p1_total_pages)
 #
 ##urls = [create_url(10000002, 1), create_url(10000002, 2), create_url(10000002, 3)]
 ##active_item_futures = create_futures(urls)
@@ -71,3 +96,10 @@ def pull_results(futures):
 ##active_items = results[0].text + results[1].text + results[2].text
 ##total_pages = results[0].headers['x-pages']
 ##print(active_items, redo_urls,total_pages)
+#
+##active_items, redo_urls = pull_all_active_items(10000002, [])
+##print(active_items)
+##print('\n')
+##print(len(active_items))
+##print('\n')
+##print(redo_urls)
