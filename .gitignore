@@ -1,3 +1,4 @@
 data/
 errors/
 __pycache__/
+*.sw*
