@@ -22,3 +22,29 @@ The output fields will be `["name", "id", f"{region}sv", f"{region}bv", "jsv", "
 You may save the source data, as well as the processed data, by setting the `SAVE_PROCESSED_DATA` or `SAVE_SOURCE_DATA` values to `True` in the file. If saved, the data will be saved as a `csv.gz` and be placed within the `market_data` folder.
 
 By default, `SAVE_SOURCE_DATA` is set to `False` as it takes longer than saving the processed data. `SAVE_PROCESSED_DATA` is set to True.
+
+## Adding additional filters.
+There is a toggle that allows additional filtering for more useful data.
+
+The toggle is `FINAL_FILTER`, and will enable the ability to use a final additional filter over the processed cut of data.
+
+The additional filter and filter values shown below are a set as a default.
+
+```python3
+
+filter_values = {
+    "jsv_margin": 0.17,
+    "jsv_min": 70000000,
+    "jbv_margin": 0.17,
+    "jbv_min": 70000000,
+}
+final_filter = (
+    jsv > filter_values["jsv_min"]
+    and jsv_sell_margin > filter_values["jsv_margin"]
+) or (
+    jbv > filter_values["jbv_min"]
+    and jbv_sell_margin > filter_values["jbv_margin"]
+)
+```
+
+The value `final_filter` will be applied to all rows of the processed data.

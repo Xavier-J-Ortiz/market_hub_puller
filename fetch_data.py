@@ -12,6 +12,9 @@ session = FuturesSession(max_workers=200)
 
 SAVE_PROCESSED_DATA = True
 SAVE_SOURCE_DATA = False
+FINAL_FILTER = True
+
+
 region_hubs = {
     "Jita": ["10000002", "60003760"],  # Do Not Delete. must always be on top
     "Amarr": ["10000043", "60008494"],
@@ -193,7 +196,7 @@ def filter_source_data(region, regional_orders, regional_min_max):
             max_buy_order[type_id] = order["price"]
 
 
-def process_filtered_data(region, regional_min_max, actionable_data):
+def process_filtered_data(region, regional_min_max, actionable_data, do_final_filter):
     actionable_data[region] = {}
     for type_id in regional_min_max["Jita"]:
         if type_id in regional_min_max[region]:
@@ -215,21 +218,35 @@ def process_filtered_data(region, regional_min_max, actionable_data):
                 jbv = float("nan")
 
             name = regional_min_max["Jita"][type_id]["name"]["name"]
-            # print(name)
             diff = hsv - jsv
             jsv_sell_margin = 1 - (jsv / hsv)
             jbv_sell_margin = 1 - (jbv / hsv)
-            actionable_data[region][name] = {
-                "name": name,
-                "id": type_id,
-                f"{region}sv": hsv,
-                f"{region}bv": hbv,
-                "jsv": jsv,
-                "jbv": jbv,
-                "diff": diff,
-                "jsv_sell_margin": jsv_sell_margin,
-                "jbv_sell_margin": jbv_sell_margin,
-            }
+            if do_final_filter:
+                filter_values = {
+                    "jsv_margin": 0.17,
+                    "jsv_min": 70000000,
+                    "jbv_margin": 0.17,
+                    "jbv_min": 70000000,
+                }
+                final_filter = (
+                    jsv > filter_values["jsv_min"]
+                    and jsv_sell_margin > filter_values["jsv_margin"]
+                ) or (
+                    jbv > filter_values["jbv_min"]
+                    and jbv_sell_margin > filter_values["jbv_margin"]
+                )
+                if final_filter:
+                    actionable_data[region][name] = {
+                        "name": name,
+                        "id": type_id,
+                        f"{region}sv": hsv,
+                        f"{region}bv": hbv,
+                        "jsv": jsv,
+                        "jbv": jbv,
+                        "diff": diff,
+                        "jsv_sell_margin": jsv_sell_margin,
+                        "jbv_sell_margin": jbv_sell_margin,
+                    }
 
 
 def data_to_csv_gz(actionable_data, fields, filename, path):
@@ -254,7 +271,7 @@ def create_actionable_data():
     for region in region_hubs:
         get_source_data(region, regional_orders)
         filter_source_data(region, regional_orders, regional_min_max)
-        process_filtered_data(region, regional_min_max, actionable_data)
+        process_filtered_data(region, regional_min_max, actionable_data, FINAL_FILTER)
     # print(actionable_data["Jita"]["Stratios"])
     # print(actionable_data["Amarr"]["Stratios"])
     # print(actionable_data["Dodixie"]["Stratios"])
