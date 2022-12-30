@@ -2,3 +2,4 @@ data/
 errors/
 __pycache__/
 *.sw*
+market_data/

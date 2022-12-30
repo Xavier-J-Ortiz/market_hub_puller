@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
+import csv
+import gzip
 import json
+import os
 from concurrent.futures import as_completed
 
 from requests.exceptions import HTTPError, RequestException
@@ -7,8 +10,10 @@ from requests_futures.sessions import FuturesSession  # type: ignore
 
 session = FuturesSession(max_workers=200)
 
+SAVE_PROCESSED_DATA = True
+SAVE_SOURCE_DATA = False
 region_hubs = {
-    "Jita": ["10000002", "60003760"],
+    "Jita": ["10000002", "60003760"],  # Do Not Delete. must always be on top
     "Amarr": ["10000043", "60008494"],
     "Dodixie": ["10000032", "60011866"],
     "Rens": ["10000030", "60004588"],
@@ -214,20 +219,32 @@ def process_filtered_data(region, regional_min_max, actionable_data):
             diff = hsv - jsv
             jsv_sell_margin = 1 - (jsv / hsv)
             jbv_sell_margin = 1 - (jbv / hsv)
-            jsv_buy_margin = 1 - (jsv / hbv)
-            jbv_buy_margin = 1 - (jbv / hbv)
             actionable_data[region][name] = {
                 "name": name,
                 "id": type_id,
                 f"{region}sv": hsv,
+                f"{region}bv": hbv,
                 "jsv": jsv,
                 "jbv": jbv,
                 "diff": diff,
                 "jsv_sell_margin": jsv_sell_margin,
                 "jbv_sell_margin": jbv_sell_margin,
-                "jsv_buy_margin": jsv_buy_margin,
-                "jbv_buy_margin": jbv_buy_margin,
             }
+
+
+def data_to_csv_gz(actionable_data, fields, filename, path):
+    if not os.path.exists(path):
+        os.makedirs(path)
+    if os.path.exists(filename):
+        os.remove(filename)
+    with gzip.open(f"{path}/{filename}", "tw") as g:
+        writer = csv.DictWriter(g, fieldnames=fields)
+        writer.writeheader()
+        if isinstance(actionable_data, dict):
+            for item in actionable_data.values():
+                writer.writerow(item)
+        elif isinstance(actionable_data, list):
+            writer.writerows(actionable_data)
 
 
 def create_actionable_data():
@@ -243,6 +260,28 @@ def create_actionable_data():
     # print(actionable_data["Dodixie"]["Stratios"])
     # print(actionable_data["Rens"]["Stratios"])
     # print(actionable_data["Hek"]["Stratios"])
+    for region in region_hubs:
+        if SAVE_PROCESSED_DATA:
+            path = "./market_data/processed_data"
+            fields = [
+                "name",
+                "id",
+                f"{region}sv",
+                f"{region}bv",
+                "jsv",
+                "jbv",
+                "diff",
+                "jsv_sell_margin",
+                "jbv_sell_margin",
+            ]
+            filename = f"{region}_processed.csv.gz"
+            data_to_csv_gz(actionable_data[region], fields, filename, path)
+        if SAVE_SOURCE_DATA:
+            path = "./market_data/source_data"
+            for data_type, data in regional_orders[region].items():
+                filename = f"{region}_{data_type}_source.csv.gz"
+                fields = list(data[0].keys())
+                data_to_csv_gz(data, fields, filename, path)
 
     return actionable_data
 
