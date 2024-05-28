@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import re
+import time
 import csv
 import gzip
 import json
@@ -80,6 +81,14 @@ def create_futures(urls):
     return all_futures
 
 
+def create_history_futures(urls):
+    all_futures = []
+    session = FuturesSession(max_workers=1)
+    for url in urls:
+        future = session.get(url)
+        all_futures.append(future)
+    return all_futures
+
 def create_post_futures(urls_json_headers):
     all_futures = []
     for url_json_header in urls_json_headers:
@@ -94,6 +103,9 @@ def create_post_futures(urls_json_headers):
 def pull_results(futures):
     results = []
     redo_urls = []
+    # starting to suspect that as_completed might be generating issues for the history portion of this program
+    # look into this, as well as into actually waiting for x-esi-error-limit-reset
+    # maybe look to do pull_results separately for history
     for response in as_completed(futures):
         result = response.result()
         try:
@@ -112,9 +124,14 @@ def pull_results(futures):
             if "x-esi-error-limit-remain" in result.headers:
                 error_limit_remaining = result.headers["x-esi-error-limit-remain"]
                 error_limit_time_to_reset = result.headers["x-esi-error-limit-reset"]
-                print(
-                        f"Error Limit Remaining: {error_limit_remaining} Limit-Rest {error_limit_time_to_reset} \n"
-                        )
+                print(f"Error Limit Remaining: {error_limit_remaining} Limit-Rest {error_limit_time_to_reset} \n")
+                # Below phrase not working
+                """
+                if "Undefined 429 response" in result.text:
+                    print(f"Waiting {error_limit_time_to_reset} seconds")
+                    time.sleep(int(error_limit_time_to_reset) + .01)
+                    print("Continuing process")
+                """
             print("\n")
             if ("Type not found!" not in result.text) and ("Type not tradable on market!" not in result.text):
                 redo_url = result.url
@@ -170,7 +187,7 @@ def pull_all_item_history_data(region, item_ids):
         answer[item_id] = []
         history_url = create_item_history_url(region, item_id)
         history_urls.append(history_url)
-    results, redo_urls = pull_results(create_futures(history_urls))
+    results, redo_urls = pull_results(create_history_futures(history_urls))
     while len(redo_urls) != 0:
         addtl_results, redo_urls = pull_results(redo_urls)
         results.append(addtl_results)
@@ -222,12 +239,16 @@ def get_source_data(region, regional_orders):
     # https://github.com/esi/esi-issues/issues/1227#issuecomment-687437225
     # or wait the seconds recommended in `X-Esi-Error-Limit-Reset` response header to retry the requests.
     if INCLUDE_HISTORY:
+        # print("setting max workers to 10")
+        # global session
+        # session = FuturesSession(max_workers=10)
         regional_orders[region]["activeOrderHistory"] = pull_all_item_history_data(region_hubs[region][0], region_item_ids)
+        # print("setting max workers back to 50")
+        # session = FuturesSession(max_workers=50)
 def find_name(type_id, activeOrderNames):
     for active_order_names in activeOrderNames:
         if active_order_names["id"] == type_id:
             return active_order_names
-
 
 
 def filter_source_data(region, regional_orders, regional_min_max):
@@ -245,13 +266,6 @@ def filter_source_data(region, regional_orders, regional_min_max):
             # Getting stopiteration errors in Next sometimes, don't understand why.
             # Might need to do this differently
             regional_min_max[region][type_id]["name"] = find_name(type_id, regional_orders[region]["activeOrderNames"])
-            '''
-            regional_min_max[region][type_id]["name"] = next(
-                    name
-                    for name in regional_orders[region]["activeOrderNames"]
-                    if name["id"] == type_id
-                    )
-            '''
         if (
                 (not order["is_buy_order"])
                 & (order["location_id"] == int(region_hubs[region][1]))
