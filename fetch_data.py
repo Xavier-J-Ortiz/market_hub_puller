@@ -113,7 +113,7 @@ def pull_results(futures):
                 error_limit_remaining = result.headers["x-esi-error-limit-remain"]
                 error_limit_time_to_reset = result.headers["x-esi-error-limit-reset"]
                 print(
-                        "Error Limit Remaining: {error_limit_remaining} Limit-Rest {error_limit_time_to_reset} \n"
+                        f"Error Limit Remaining: {error_limit_remaining} Limit-Rest {error_limit_time_to_reset} \n"
                         )
             print("\n")
             if ("Type not found!" not in result.text) and ("Type not tradable on market!" not in result.text):
@@ -220,8 +220,14 @@ def get_source_data(region, regional_orders):
     # TODO Seems like there are too many requests. seeing `{"error":"Undefined 429 response. Original message: Too
     # many requests."}` To solve, try something suggested here to space out requests and avoid too many:
     # https://github.com/esi/esi-issues/issues/1227#issuecomment-687437225
+    # or wait the seconds recommended in `X-Esi-Error-Limit-Reset` response header to retry the requests.
     if INCLUDE_HISTORY:
         regional_orders[region]["activeOrderHistory"] = pull_all_item_history_data(region_hubs[region][0], region_item_ids)
+def find_name(type_id, activeOrderNames):
+    for active_order_names in activeOrderNames:
+        if active_order_names["id"] == type_id:
+            return active_order_names
+
 
 
 def filter_source_data(region, regional_orders, regional_min_max):
@@ -238,11 +244,14 @@ def filter_source_data(region, regional_orders, regional_min_max):
             regional_min_max[region][type_id] = {}
             # Getting stopiteration errors in Next sometimes, don't understand why.
             # Might need to do this differently
+            regional_min_max[region][type_id]["name"] = find_name(type_id, regional_orders[region]["activeOrderNames"])
+            '''
             regional_min_max[region][type_id]["name"] = next(
                     name
                     for name in regional_orders[region]["activeOrderNames"]
                     if name["id"] == type_id
                     )
+            '''
         if (
                 (not order["is_buy_order"])
                 & (order["location_id"] == int(region_hubs[region][1]))
