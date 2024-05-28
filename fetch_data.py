@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import re
 import csv
 import gzip
 import json
@@ -8,20 +9,25 @@ from concurrent.futures import as_completed
 from requests.exceptions import HTTPError, RequestException
 from requests_futures.sessions import FuturesSession  # type: ignore
 
-session = FuturesSession(max_workers=200)
+session = FuturesSession(max_workers=50)
 
 SAVE_PROCESSED_DATA = True
-SAVE_SOURCE_DATA = False
+SAVE_SOURCE_DATA = True
 FINAL_FILTER = True
+PRINT_INFORMATIONAL_ERR_LIMITS = False  # set true to see informational error information for troubleshooting only.
+INCLUDE_HISTORY = False
 
-
+# TODO: Filter processed data per station, which in the market data is the `location_id`
+# <region>: [<region>, <station>]
 region_hubs = {
-    "Jita": ["10000002", "60003760"],  # Do Not Delete. must always be on top
-    "Amarr": ["10000043", "60008494"],
-    "Dodixie": ["10000032", "60011866"],
-    "Rens": ["10000030", "60004588"],
-    "Hek": ["10000042", "60005686"],
-}
+        "Jita": ["10000002", "60003760"],  # Do Not Delete. must always be on top
+        "Amarr": ["10000043", "60008494"],
+        "Dodixie": ["10000032", "60011866"],
+        "Rens": ["10000030", "60004588"],
+        "Hek": ["10000042", "60005686"],
+        # "Deklein": ["10000035", "1043621617719"],  # B0RT keepstar in 3T7-M8
+        # "Vale": ["10000003", "1035466617946"]  # FRT staging in 4-HWWF
+        }
 
 
 def create_all_order_url(region, page_number):
@@ -38,14 +44,21 @@ def create_active_items_url(region, page_number):
     return url
 
 
+def create_item_history_url(region, item_id):
+    url_base = "https://esi.evetech.net/latest/markets/"
+    url_end = "/history/?datasource=tranquility&page=1&type_id="
+    url = url_base + str(region) + url_end + str(item_id)
+    return url
+
+
 def create_name_urls_json_headers(ids):
     urls_json_headers = []
     url = "https://esi.evetech.net/latest/universe/names/?datasource=tranquility"
     header = {
-        "accept": "application/json",
-        "Content-Type": "application/json",
-        "Cache-Control": "no-cache",
-    }
+            "accept": "application/json",
+            "Content-Type": "application/json",
+            "Cache-Control": "no-cache",
+            }
     if len(ids) <= 1000:
         id_segment = ids
         urls_json_headers.append([url, id_segment, header])
@@ -86,25 +99,28 @@ def pull_results(futures):
         try:
             result.raise_for_status()
             error_limit_remaining = result.headers["x-esi-error-limit-remain"]
-            if error_limit_remaining != "100":
+            if error_limit_remaining != "100" and PRINT_INFORMATIONAL_ERR_LIMITS:
                 error_limit_time_to_reset = result.headers["x-esi-error-limit-reset"]
                 print(
-                    f"INFORMATIONAL: Though no error, for {result.url} the Error Limit Remaning: {error_limit_remaining} Limit-Rest "
-                    f"{error_limit_time_to_reset} \n\n"
-                )
+                        f"INFORMATIONAL: Though no error, for {result.url} the Error Limit Remaning: {error_limit_remaining} Limit-Rest "
+                        f"{error_limit_time_to_reset} \n\n"
+                        )
         except HTTPError:
             print(
-                f"Received status code {result.status_code} from {result.url} With headers:\n{str(result.headers)}\n"
-            )
+                    f"Received status code {result.status_code} from {result.url} With headers:\n{str(result.headers)}, and result.text {result.text} of type {type(result.text)}\n"
+                    )
             if "x-esi-error-limit-remain" in result.headers:
                 error_limit_remaining = result.headers["x-esi-error-limit-remain"]
                 error_limit_time_to_reset = result.headers["x-esi-error-limit-reset"]
                 print(
-                    "Error Limit Remaing: {error_limit_remaining} Limit-Rest {error_limit_time_to_reset} \n"
-                )
+                        "Error Limit Remaining: {error_limit_remaining} Limit-Rest {error_limit_time_to_reset} \n"
+                        )
             print("\n")
-            redo_url = result.url
-            redo_urls.append(redo_url)
+            if ("Type not found!" not in result.text) and ("Type not tradable on market!" not in result.text):
+                redo_url = result.url
+                redo_urls.append(redo_url)
+            else:
+                print(f"Not added to redo_urls due to {result.text} output\n")
             continue
         except RequestException as e:
             print("other error is " + e + " from " + result.url)
@@ -113,10 +129,14 @@ def pull_results(futures):
     return results, redo_urls
 
 
+# Pulls all order data
+# func is the url generator
 def pull_all_get_data(region, redo_urls, func):
     if len(redo_urls) == 0:
         active_items = []
         p1_result, redo_urls = pull_results(create_futures([func(region, 1)]))
+        # While loop does not overwrite a good page one result.
+        # It either has a p1_result, or has redo_urls.
         while len(redo_urls) != 0:
             p1_result, redo_urls = pull_results(create_futures(redo_urls))
         p1_active_items = json.loads(p1_result[0].text)
@@ -142,6 +162,25 @@ def pull_all_get_data(region, redo_urls, func):
     return active_items, redo_urls
 
 
+def pull_all_item_history_data(region, item_ids):
+    redo_urls = []
+    history_urls = []
+    answer = {}
+    for item_id in item_ids:
+        answer[item_id] = []
+        history_url = create_item_history_url(region, item_id)
+        history_urls.append(history_url)
+    results, redo_urls = pull_results(create_futures(history_urls))
+    while len(redo_urls) != 0:
+        addtl_results, redo_urls = pull_results(redo_urls)
+        results.append(addtl_results)
+    for result in results:
+        result_item_id = result.url.split("=")[-1]
+        if result_item_id in answer:
+            answer[result_item_id] = json.loads(result.text)
+    return answer, redo_urls
+
+
 def pull_all_post_data(ids):
     all_names = []
     item_ids = create_name_urls_json_headers(ids)
@@ -153,14 +192,36 @@ def pull_all_post_data(ids):
     return all_names
 
 
+# Uses functions to build source data.
+# This is where all source data should be created
 def get_source_data(region, regional_orders):
     regional_orders[region] = {}
-    regional_orders[region]["allOrdersData"] = pull_all_get_data(
-        region_hubs[region][0], [], create_all_order_url
-    )[0]
-    regional_orders[region]["activeOrderNames"] = pull_all_post_data(
-        pull_all_get_data(region_hubs[region][0], [], create_active_items_url)[0]
-    )
+    regional_orders[region]["allOrdersData"] = pull_all_get_data(region_hubs[region][0], [], create_all_order_url)[0]
+    # Active order item IDs
+    region_item_ids = pull_all_get_data(region_hubs[region][0], [], create_active_items_url)[0]
+    # List of dictionaries containing category, id, and name data
+    regional_orders[region]["activeOrderNames"] = pull_all_post_data(region_item_ids)
+    cleaned_active_orders = []
+    cleaned_all_orders = []
+    relevant_active_orders_ids = []
+    for i in range(len(regional_orders[region]["activeOrderNames"])):
+        # Remove blueprints and Expired items from active items
+        if not (re.match(r".+Blueprint$", regional_orders[region]["activeOrderNames"][i]["name"]) or re.match(r"^Expired", regional_orders[region]["activeOrderNames"][i]["name"])):
+            cleaned_active_orders.append(regional_orders[region]["activeOrderNames"][i])
+            relevant_active_orders_ids.append(regional_orders[region]["activeOrderNames"][i]["id"])
+    regional_orders[region]["activeOrderNames"] = cleaned_active_orders
+    removed_orders_id = list(set(region_item_ids)-set(relevant_active_orders_ids))
+    region_item_ids = relevant_active_orders_ids
+    for i in range(len(regional_orders[region]["allOrdersData"])):
+        if regional_orders[region]["allOrdersData"][i]["type_id"] not in removed_orders_id:
+            cleaned_all_orders.append(regional_orders[region]["allOrdersData"][i])
+    regional_orders[region]["allOrdersData"] = cleaned_all_orders
+    # Dictionary: {item_id: [{history_day_a}, {historyi_day_b}], ...}
+    # TODO Seems like there are too many requests. seeing `{"error":"Undefined 429 response. Original message: Too
+    # many requests."}` To solve, try something suggested here to space out requests and avoid too many:
+    # https://github.com/esi/esi-issues/issues/1227#issuecomment-687437225
+    if INCLUDE_HISTORY:
+        regional_orders[region]["activeOrderHistory"] = pull_all_item_history_data(region_hubs[region][0], region_item_ids)
 
 
 def filter_source_data(region, regional_orders, regional_min_max):
@@ -175,23 +236,25 @@ def filter_source_data(region, regional_orders, regional_min_max):
             min_sell_order[type_id] = pos_infinity
             max_buy_order[type_id] = neg_infinity
             regional_min_max[region][type_id] = {}
+            # Getting stopiteration errors in Next sometimes, don't understand why.
+            # Might need to do this differently
             regional_min_max[region][type_id]["name"] = next(
-                name
-                for name in regional_orders[region]["activeOrderNames"]
-                if name["id"] == type_id
-            )
+                    name
+                    for name in regional_orders[region]["activeOrderNames"]
+                    if name["id"] == type_id
+                    )
         if (
-            (not order["is_buy_order"])
-            & (order["location_id"] == int(region_hubs[region][1]))
-            & (order["price"] <= min_sell_order[type_id])
-        ):
+                (not order["is_buy_order"])
+                & (order["location_id"] == int(region_hubs[region][1]))
+                & (order["price"] <= min_sell_order[type_id])
+                ):
             regional_min_max[region][type_id]["min"] = order
             min_sell_order[type_id] = order["price"]
         elif (
-            (order["is_buy_order"])
-            & (order["location_id"] == int(region_hubs[region][1]))
-            & (order["price"] >= max_buy_order[type_id])
-        ):
+                (order["is_buy_order"])
+                & (order["location_id"] == int(region_hubs[region][1]))
+                & (order["price"] >= max_buy_order[type_id])
+                ):
             regional_min_max[region][type_id]["max"] = order
             max_buy_order[type_id] = order["price"]
 
@@ -216,37 +279,41 @@ def process_filtered_data(region, regional_min_max, actionable_data, do_final_fi
                 jbv = regional_min_max["Jita"][type_id]["max"]["price"]
             else:
                 jbv = float("nan")
-
+            # Why nested name? Might be worth fixing.
+            # TODO evaluate if this could be flattened
             name = regional_min_max["Jita"][type_id]["name"]["name"]
             diff = hsv - jsv
             jsv_sell_margin = 1 - (jsv / hsv)
             jbv_sell_margin = 1 - (jbv / hsv)
             if do_final_filter:
                 filter_values = {
-                    "jsv_margin": 0.17,
-                    "jsv_min": 70000000,
-                    "jbv_margin": 0.17,
-                    "jbv_min": 70000000,
-                }
+                        "jsv_margin": 0.17,
+                        "jsv_min": 70000000,
+                        "jbv_margin": 0.17,
+                        "jbv_min": 70000000,
+                        }
                 final_filter = (
-                    jsv > filter_values["jsv_min"]
-                    and jsv_sell_margin > filter_values["jsv_margin"]
-                ) or (
-                    jbv > filter_values["jbv_min"]
-                    and jbv_sell_margin > filter_values["jbv_margin"]
-                )
+                        jsv > filter_values["jsv_min"]
+                        and jsv_sell_margin > filter_values["jsv_margin"]
+                        ) or (
+                                jbv > filter_values["jbv_min"]
+                                and jbv_sell_margin > filter_values["jbv_margin"]
+                                )
                 if final_filter:
+                    # history = pull_all_item_history_data(region_hubs[region][0], [str(type_id)])[0][str(type_id)]
+                    # print(f"TAKE A LOOK AT {region} HISTORY of {name}")
+                    # print(history)
                     actionable_data[region][name] = {
-                        "name": name,
-                        "id": type_id,
-                        f"{region}sv": hsv,
-                        f"{region}bv": hbv,
-                        "jsv": jsv,
-                        "jbv": jbv,
-                        "diff": diff,
-                        "jsv_sell_margin": jsv_sell_margin,
-                        "jbv_sell_margin": jbv_sell_margin,
-                    }
+                            "name": name,
+                            "id": type_id,
+                            f"{region}sv": hsv,
+                            f"{region}bv": hbv,
+                            "jsv": jsv,
+                            "jbv": jbv,
+                            "diff": diff,
+                            "jsv_sell_margin": jsv_sell_margin,
+                            "jbv_sell_margin": jbv_sell_margin,
+                            }
 
 
 def data_to_csv_gz(actionable_data, fields, filename, path):
@@ -269,8 +336,11 @@ def create_actionable_data():
     regional_min_max = {}
     actionable_data = {}
     for region in region_hubs:
+        # Gets all orders and their names
         get_source_data(region, regional_orders)
+        # Creates a set of data that captures the min sell/max buy order of a region
         filter_source_data(region, regional_orders, regional_min_max)
+        # Calls relevant price data for an item, and processes it for comparison
         process_filtered_data(region, regional_min_max, actionable_data, FINAL_FILTER)
     # print(actionable_data["Jita"]["Stratios"])
     # print(actionable_data["Amarr"]["Stratios"])
@@ -280,17 +350,31 @@ def create_actionable_data():
     for region in region_hubs:
         if SAVE_PROCESSED_DATA:
             path = "./market_data/processed_data"
-            fields = [
-                "name",
-                "id",
-                f"{region}sv",
-                f"{region}bv",
-                "jsv",
-                "jbv",
-                "diff",
-                "jsv_sell_margin",
-                "jbv_sell_margin",
-            ]
+            if INCLUDE_HISTORY:
+                fields = [
+                        "name",
+                        "id",
+                        f"{region}sv",
+                        f"{region}bv",
+                        "jsv",
+                        "jbv",
+                        "diff",
+                        "jsv_sell_margin",
+                        "jbv_sell_margin",
+                        "history"
+                        ]
+            else:
+                fields = [
+                        "name",
+                        "id",
+                        f"{region}sv",
+                        f"{region}bv",
+                        "jsv",
+                        "jbv",
+                        "diff",
+                        "jsv_sell_margin",
+                        "jbv_sell_margin"
+                        ]
             filename = f"{region}_processed.csv.gz"
             data_to_csv_gz(actionable_data[region], fields, filename, path)
         if SAVE_SOURCE_DATA:

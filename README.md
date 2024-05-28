@@ -1,6 +1,15 @@
 # Market Hub Puller
 
 Effort to consume EVE Online's ESI for sorting out items.
+## Requirements
+Requires Python3 and requests-futures.
+
+Install on ubuntu by running:
+
+```
+apt-get install python3-requests-futures
+```
+
 ## How to Run
 Specify what region hubs you want to do analysis on. Default has the 5 high sec npc stations, located in Jita, Amarr, Rens, and Hek. Other locations can be added, so long as the `Jita` entry is at the top of the dict, and their region ID and hub ID is specified in the `region_hubs` dictionary. Example shown below:
 
