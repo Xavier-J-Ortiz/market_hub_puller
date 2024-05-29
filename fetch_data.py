@@ -1,6 +1,5 @@
-#!/usr/bin/env python3
+#! /usr/bin/env python3
 import re
-import time
 import csv
 import gzip
 import json
@@ -16,16 +15,16 @@ SAVE_PROCESSED_DATA = True
 SAVE_SOURCE_DATA = True
 FINAL_FILTER = True
 PRINT_INFORMATIONAL_ERR_LIMITS = False  # set true to see informational error information for troubleshooting only.
-INCLUDE_HISTORY = False
+INCLUDE_HISTORY = True
 
 # TODO: Filter processed data per station, which in the market data is the `location_id`
 # <region>: [<region>, <station>]
 region_hubs = {
         "Jita": ["10000002", "60003760"],  # Do Not Delete. must always be on top
-        "Amarr": ["10000043", "60008494"],
-        "Dodixie": ["10000032", "60011866"],
-        "Rens": ["10000030", "60004588"],
-        "Hek": ["10000042", "60005686"],
+        # "Amarr": ["10000043", "60008494"],
+        # "Dodixie": ["10000032", "60011866"],
+        # "Rens": ["10000030", "60004588"],
+        # "Hek": ["10000042", "60005686"],
         # "Deklein": ["10000035", "1043621617719"],  # B0RT keepstar in 3T7-M8
         # "Vale": ["10000003", "1035466617946"]  # FRT staging in 4-HWWF
         }
@@ -83,11 +82,14 @@ def create_futures(urls):
 
 def create_history_futures(urls):
     all_futures = []
-    session = FuturesSession(max_workers=1)
+    # creating different session max workers from main version
+    # Since this is rate limited.
+    history_session = FuturesSession(max_workers=5)
     for url in urls:
-        future = session.get(url)
+        future = history_session.get(url)
         all_futures.append(future)
     return all_futures
+
 
 def create_post_futures(urls_json_headers):
     all_futures = []
@@ -108,6 +110,17 @@ def pull_results(futures):
     # maybe look to do pull_results separately for history
     for response in as_completed(futures):
         result = response.result()
+        """
+        if result.status_code == 500 and "Undefined 429 response" in result.text:
+            error_limit_time_to_reset = result.headers["x-esi-error-limit-reset"]
+            print(f"Status code {result.status_code}, waiting {error_limit_time_to_reset} seconds for url: {result.url}")
+            time.sleep(int(error_limit_time_to_reset)/50.0)
+            print("Continuing process")
+        c = datetime.datetime.now()
+        # Displays Time
+        current_time = c.strftime('%H:%M:%S')
+        print('Current Time is:', current_time)
+        """
         try:
             result.raise_for_status()
             error_limit_remaining = result.headers["x-esi-error-limit-remain"]
@@ -125,13 +138,7 @@ def pull_results(futures):
                 error_limit_remaining = result.headers["x-esi-error-limit-remain"]
                 error_limit_time_to_reset = result.headers["x-esi-error-limit-reset"]
                 print(f"Error Limit Remaining: {error_limit_remaining} Limit-Rest {error_limit_time_to_reset} \n")
-                # Below phrase not working
-                """
-                if "Undefined 429 response" in result.text:
-                    print(f"Waiting {error_limit_time_to_reset} seconds")
-                    time.sleep(int(error_limit_time_to_reset) + .01)
-                    print("Continuing process")
-                """
+                # Below phrase not working as intended
             print("\n")
             if ("Type not found!" not in result.text) and ("Type not tradable on market!" not in result.text):
                 redo_url = result.url
@@ -184,17 +191,25 @@ def pull_all_item_history_data(region, item_ids):
     history_urls = []
     answer = {}
     for item_id in item_ids:
-        answer[item_id] = []
         history_url = create_item_history_url(region, item_id)
         history_urls.append(history_url)
+        answer[item_id] = []
+    # Will return a list of Responses, which will contain the information needed
     results, redo_urls = pull_results(create_history_futures(history_urls))
+    # print("printing an entry of results, to get an idea of what this is")
+    # print(results)
     while len(redo_urls) != 0:
-        addtl_results, redo_urls = pull_results(redo_urls)
-        results.append(addtl_results)
+        addtl_results, redo_urls = pull_results(create_history_futures(redo_urls))
+        results = results + addtl_results
     for result in results:
-        result_item_id = result.url.split("=")[-1]
-        if result_item_id in answer:
-            answer[result_item_id] = json.loads(result.text)
+        result_item_id = int(result.url.split("=")[-1])
+        item = json.loads(result.text)
+        answer[result_item_id] = item
+        # answer[int(result_item_id)] = json.loads(result.text)
+        # print(f"expected answer is the history for itemId: {result_item_id}")
+        # print("answer[result_item_id]:\n")
+        # print(answer[result_item_id])
+    # answer is a dictionary of itemIDs and a list of dictionaries with the history information
     return answer, redo_urls
 
 
@@ -239,12 +254,12 @@ def get_source_data(region, regional_orders):
     # https://github.com/esi/esi-issues/issues/1227#issuecomment-687437225
     # or wait the seconds recommended in `X-Esi-Error-Limit-Reset` response header to retry the requests.
     if INCLUDE_HISTORY:
-        # print("setting max workers to 10")
-        # global session
-        # session = FuturesSession(max_workers=10)
-        regional_orders[region]["activeOrderHistory"] = pull_all_item_history_data(region_hubs[region][0], region_item_ids)
-        # print("setting max workers back to 50")
-        # session = FuturesSession(max_workers=50)
+        print(f"{region} history pulling has started")
+        regional_orders[region]["activeOrderHistory"] = pull_all_item_history_data(region_hubs[region][0], region_item_ids)[0]
+        # print(regional_orders[region]["activeOrderHistory"])
+        print(f"{region} history pulling has ended")
+
+
 def find_name(type_id, activeOrderNames):
     for active_order_names in activeOrderNames:
         if active_order_names["id"] == type_id:
@@ -266,6 +281,7 @@ def filter_source_data(region, regional_orders, regional_min_max):
             # Getting stopiteration errors in Next sometimes, don't understand why.
             # Might need to do this differently
             regional_min_max[region][type_id]["name"] = find_name(type_id, regional_orders[region]["activeOrderNames"])
+            # TODO - create a find_history?
         if (
                 (not order["is_buy_order"])
                 & (order["location_id"] == int(region_hubs[region][1]))
@@ -348,13 +364,18 @@ def data_to_csv_gz(actionable_data, fields, filename, path):
         writer = csv.DictWriter(g, fieldnames=fields)
         writer.writeheader()
         if isinstance(actionable_data, dict):
-            for item in actionable_data.values():
-                writer.writerow(item)
+            if isinstance(list(actionable_data.keys())[0], int):
+                for type_id, history in actionable_data:
+                    writer.writerow({"type_id": type_id, "history": history})
+            else:
+                for item in actionable_data.values():
+                    writer.writerow(item)
         elif isinstance(actionable_data, list):
             writer.writerows(actionable_data)
 
 
 def create_actionable_data():
+    # Need to find where to insert history
     regional_orders = {}
     regional_min_max = {}
     actionable_data = {}
@@ -404,9 +425,21 @@ def create_actionable_data():
             path = "./market_data/source_data"
             for data_type, data in regional_orders[region].items():
                 filename = f"{region}_{data_type}_source.csv.gz"
-                fields = list(data[0].keys())
-                data_to_csv_gz(data, fields, filename, path)
-
+                if data_type != "activeOrderHistory":
+                    fields = list(data[0].keys())
+                    data_to_csv_gz(data, fields, filename, path)
+                """
+                else:
+                    fields = ["type_id", "history"]
+                    formatted_data = []
+                    for type_id, history in data.items():
+                        item_history = {
+                                        "type_id": type_id,
+                                        "history": history
+                                        }
+                        formatted_data.append(item_history)
+                    data_to_csv_gz(formatted_data, fields, filename, path)
+                """
     return actionable_data
 
 
