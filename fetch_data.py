@@ -1,4 +1,5 @@
 #! /usr/bin/env python3
+from time import sleep
 import re
 import csv
 import gzip
@@ -109,6 +110,7 @@ def create_post_futures(urls_json_headers):
 def futures_results(futures):
     results = []
     redo_urls = []
+    error_timer = 0
     for response in as_completed(futures):
         result = response.result()
         try:
@@ -130,6 +132,8 @@ def futures_results(futures):
                 error_limit_time_to_reset = result.headers["x-esi-error-limit-reset"]
                 print(f"Error Limit Remaining: {error_limit_remaining} Limit-Rest {error_limit_time_to_reset} \n")
             print("\n")
+            if int(error_limit_remaining) < 10 and int(error_limit_time_to_reset) >= 1:
+                error_timer = error_limit_time_to_reset
             if ("Type not found!" not in result.text) and ("Type not tradable on market!" not in result.text):
                 redo_url = result.url
                 redo_urls.append(redo_url)
@@ -140,7 +144,7 @@ def futures_results(futures):
             print("other error is " + e + " from " + result.url)
             continue
         results.append(result)
-    return results, redo_urls
+    return results, redo_urls, int(error_timer)
 
 
 # Deserializes resulting JSON from futures, used in `get_source_data`
@@ -149,28 +153,46 @@ def deserialized_orders_items(region, redo_urls, func):
         deserialized_results = []
         # `p1_results` are the raw results of a first page of a request
         # `redo_urls` is a list of URLs that were not able to be loaded, and require to be requesting again
-        p1_result, redo_urls = futures_results(create_futures([func(region, 1)]))
+        p1_result, redo_urls, error_timer = futures_results(create_futures([func(region, 1)]))
+        if error_timer != 0:
+            print(f"Sleeping p1 order fetching due to error timer being {error_timer} seconds")
+            sleep(error_timer + 10)
         while len(redo_urls) != 0:
-            p1_result, redo_urls = futures_results(create_futures(redo_urls))
+            p1_result, redo_urls, error_timer = futures_results(create_futures(redo_urls))
+            if error_timer != 0:
+                print(f"Sleeping p1 order fetching due to error timer being {error_timer} seconds")
+                sleep(error_timer + 1)
         p1_deserialized_result = json.loads(p1_result[0].text)
         total_pages = int(p1_result[0].headers["x-pages"])
         deserialized_results += p1_deserialized_result
     if len(redo_urls) == 0:
         urls = []
+        chunk_length = 100
         for page in range(2, total_pages + 1):
             url = func(region, str(page))
-            urls.append(url)
-        pages_futures = create_futures(urls)
-        pages_results, redo_urls = futures_results(pages_futures)
-        for result in pages_results:
-            deserialized_result = json.loads(result.text)
-            deserialized_results += deserialized_result
-        while len(redo_urls) != 0:
-            pages_futures = create_futures(redo_urls)
-            pages_results, redo_urls = futures_results(pages_futures)
+            chunk_modulus = (page - 2) % chunk_length
+            if chunk_modulus == 0:
+                urls.append([])
+            # urls is a list of (at most 100 url) lists.
+            urls[(page - 2) // 100].append(url)
+        for chunk_urls in urls:
+            pages_futures = create_futures(chunk_urls)
+            pages_results, redo_urls, error_timer = futures_results(pages_futures)
             for result in pages_results:
                 deserialized_result = json.loads(result.text)
                 deserialized_results += deserialized_result
+            if error_timer != 0:
+                print(f"Sleeping order fetching due to error timer being {error_timer} seconds")
+                sleep(error_timer + 1)
+            while len(redo_urls) != 0:
+                pages_futures = create_futures(redo_urls)
+                pages_results, redo_urls, error_timer = futures_results(pages_futures)
+                for result in pages_results:
+                    deserialized_result = json.loads(result.text)
+                    deserialized_results += deserialized_result
+                if error_timer != 0:
+                    print(f"Sleeping redo order fetching due to error timer being {error_timer} seconds")
+                    sleep(error_timer + 1)
     return deserialized_results, redo_urls
 
 
@@ -178,20 +200,34 @@ def deserialized_orders_items(region, redo_urls, func):
 def deserialized_history(region, item_ids):
     redo_urls = []
     history_urls = []
-    answer = {}
+    histories = {}
+    # chunk_length 10k doesn't seem to affect time too much, but need to test early in the new day
+    chunk_length = 10000
+    item_number = 0
     for item_id in item_ids:
         history_url = create_item_history_url(region, item_id)
-        history_urls.append(history_url)
-        answer[item_id] = []
-    results, redo_urls = futures_results(create_history_futures(history_urls))
-    while len(redo_urls) != 0:
-        addtl_results, redo_urls = futures_results(create_history_futures(redo_urls))
-        results = results + addtl_results
-    for result in results:
-        result_item_id = int(result.url.split("=")[-1])
-        item = json.loads(result.text)
-        answer[result_item_id] = item
-    return answer, redo_urls
+        if item_number % chunk_length == 0:
+            history_urls.append([])
+        history_urls[item_number // chunk_length].append(history_url)
+        histories[item_id] = []
+        item_number += 1
+    for history_chunk in history_urls:
+        # TODO: go back and understand/cleanup futures_results better.
+        results, redo_urls, error_timer = futures_results(create_history_futures(history_chunk))
+        for result in results:
+            result_item_id = int(result.url.split("=")[-1])
+            item = json.loads(result.text)
+            histories[result_item_id] = item
+        if error_timer != 0:
+            print(f"Sleeping history fetching due to error timer being {error_timer} seconds")
+            sleep(error_timer + 1)
+        while len(redo_urls) != 0:
+            addtl_results, redo_urls, error_timer = futures_results(create_history_futures(redo_urls))
+            results = results + addtl_results
+            if error_timer != 0:
+                print(f"Sleeping history fetching due to error timer being {error_timer} seconds")
+                sleep(error_timer + 1)
+    return histories, redo_urls
 
 
 def deserialize_order_names(ids):
@@ -222,7 +258,8 @@ def get_source_data(region, regional_orders):
         # Data sanitizing for later processing - Remove blueprints and Expired items from active items
         is_blueprint = re.match(r".+Blueprint$", regional_orders[region]["active_order_names"][i]["name"])
         is_expired = re.match(r"^Expired", regional_orders[region]["active_order_names"][i]["name"])
-        if not (is_blueprint or is_expired):
+        is_ore_processing = re.match(r"\w+(\s\w+)?\sProcessing$", regional_orders[region]["active_order_names"][i]["name"])
+        if not (is_blueprint or is_expired or is_ore_processing):
             active_orders_cleaned.append(regional_orders[region]["active_order_names"][i])
             cleaned_active_orders_ids.append(regional_orders[region]["active_order_names"][i]["id"])
     regional_orders[region]["active_order_names"] = active_orders_cleaned
