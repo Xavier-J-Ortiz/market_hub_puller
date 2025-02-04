@@ -167,14 +167,14 @@ def deserialized_orders_items(region, redo_urls, func):
         deserialized_results += p1_deserialized_result
     if len(redo_urls) == 0:
         urls = []
-        chunk_length = 100
+        chunk_length = 300
         for page in range(2, total_pages + 1):
             url = func(region, str(page))
             chunk_modulus = (page - 2) % chunk_length
             if chunk_modulus == 0:
                 urls.append([])
             # urls is a list of (at most 100 url) lists.
-            urls[(page - 2) // 100].append(url)
+            urls[(page - 2) // chunk_length].append(url)
         for chunk_urls in urls:
             pages_futures = create_futures(chunk_urls)
             pages_results, redo_urls, error_timer = futures_results(pages_futures)
@@ -202,7 +202,7 @@ def deserialized_history(region, item_ids):
     history_urls = []
     histories = {}
     # chunk_length 10k doesn't seem to affect time too much, but need to test early in the new day
-    chunk_length = 10000
+    chunk_length = 300
     item_number = 0
     for item_id in item_ids:
         history_url = create_item_history_url(region, item_id)
