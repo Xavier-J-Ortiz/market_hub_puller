@@ -84,9 +84,6 @@ def create_futures(urls):
 
 def create_history_futures(urls):
     all_futures = []
-    # Independent `max_worker` for history futures.
-    # Initially thought these failed due to rate limits, more likely just takes EvE servers to churn out the data to
-    # the end point.
     history_session = FuturesSession(max_workers=160)
     for url in urls:
         future = history_session.get(url)
@@ -106,7 +103,7 @@ def create_post_futures(urls_json_headers):
 
 
 # Generic function that resolves futures results with some error handeling that returns the raw output from the
-# requested endpoint used in other functions like deserialized_orders_items, deserialized_history, and deserialize_order_names
+# requested endpoint used in other functions like deserialize_order_items, deserialize_history, and deserialize_order_names
 def futures_results(futures):
     results = []
     redo_urls = []
@@ -147,62 +144,84 @@ def futures_results(futures):
     return results, redo_urls, int(error_timer)
 
 
-# Deserializes resulting JSON from futures, used in `get_source_data`
-def deserialized_orders_items(region, redo_urls, func):
-    if len(redo_urls) == 0:
-        deserialized_results = []
-        # `p1_results` are the raw results of a first page of a request
-        # `redo_urls` is a list of URLs that were not able to be loaded, and require to be requesting again
-        p1_result, redo_urls, error_timer = futures_results(create_futures([func(region, 1)]))
-        if error_timer != 0:
-            print(f"Sleeping p1 order fetching due to error timer being {error_timer} seconds")
-            sleep(error_timer + 10)
+def pause_futures(error_timer, message):
+    if error_timer != 0:
+        print(message)
+        sleep(error_timer + 1)
+
+
+def deserialize_order_item_p1(region, func):
+    deserialized_results = []
+    # `p1_results` are the raw results of a first page of a request
+    # `redo_urls` is a list of URLs that were not able to be loaded, and require to be requesting again
+    p1_result, redo_urls, error_timer = futures_results(create_futures([func(region, 1)]))
+    pause_futures(error_timer, f"Sleeping p1 order fetching due to error timer being {error_timer} seconds")
+    while len(redo_urls) != 0:
+        p1_result, redo_urls, error_timer = futures_results(create_futures(redo_urls))
+        pause_futures(error_timer, f"Sleeping p1 order fetching due to error timer being {error_timer} seconds")
+    p1_deserialized_result = json.loads(p1_result[0].text)
+    total_pages = int(p1_result[0].headers["x-pages"])
+    deserialized_results += p1_deserialized_result
+    return deserialized_results, total_pages
+
+
+def deserialize_order_items_p2_onwards(region, total_pages, deserialized_results, func):
+    urls = []
+    chunk_length = 30000
+    for page in range(2, total_pages + 1):
+        url = func(region, str(page))
+        if (page - 2) % chunk_length == 0:
+            urls.append([])
+        # urls is a list of (at most 100 url) lists.
+        urls[(page - 2) // chunk_length].append(url)
+    for chunk_urls in urls:
+        pages_futures = create_futures(chunk_urls)
+        pages_results, redo_urls, error_timer = futures_results(pages_futures)
+        for result in pages_results:
+            deserialized_result = json.loads(result.text)
+            deserialized_results += deserialized_result
+        pause_futures(error_timer, f"Sleeping order fetching due to error timer being {error_timer} seconds")
         while len(redo_urls) != 0:
-            p1_result, redo_urls, error_timer = futures_results(create_futures(redo_urls))
-            if error_timer != 0:
-                print(f"Sleeping p1 order fetching due to error timer being {error_timer} seconds")
-                sleep(error_timer + 1)
-        p1_deserialized_result = json.loads(p1_result[0].text)
-        total_pages = int(p1_result[0].headers["x-pages"])
-        deserialized_results += p1_deserialized_result
-    if len(redo_urls) == 0:
-        urls = []
-        chunk_length = 300
-        for page in range(2, total_pages + 1):
-            url = func(region, str(page))
-            chunk_modulus = (page - 2) % chunk_length
-            if chunk_modulus == 0:
-                urls.append([])
-            # urls is a list of (at most 100 url) lists.
-            urls[(page - 2) // chunk_length].append(url)
-        for chunk_urls in urls:
-            pages_futures = create_futures(chunk_urls)
+            pages_futures = create_futures(redo_urls)
             pages_results, redo_urls, error_timer = futures_results(pages_futures)
             for result in pages_results:
                 deserialized_result = json.loads(result.text)
                 deserialized_results += deserialized_result
-            if error_timer != 0:
-                print(f"Sleeping order fetching due to error timer being {error_timer} seconds")
-                sleep(error_timer + 1)
-            while len(redo_urls) != 0:
-                pages_futures = create_futures(redo_urls)
-                pages_results, redo_urls, error_timer = futures_results(pages_futures)
-                for result in pages_results:
-                    deserialized_result = json.loads(result.text)
-                    deserialized_results += deserialized_result
-                if error_timer != 0:
-                    print(f"Sleeping redo order fetching due to error timer being {error_timer} seconds")
-                    sleep(error_timer + 1)
+            pause_futures(error_timer, f"Sleeping redo order fetching due to error timer being {error_timer} seconds")
     return deserialized_results, redo_urls
 
 
+# Deserializes resulting JSON from futures, used in `get_source_data`
+def deserialize_order_items(region, redo_urls, func):
+    if len(redo_urls) == 0:
+        deserialized_results, total_pages = deserialize_order_item_p1(region, func)
+    if len(redo_urls) == 0:
+        deserialized_results, redo_urls = deserialize_order_items_p2_onwards(region, total_pages, deserialized_results, func)
+    return deserialized_results, redo_urls
+
+
+def deserialize_history_chunk(history_urls, histories):
+    for history_chunk in history_urls:
+        results, redo_urls, error_timer = futures_results(create_history_futures(history_chunk))
+        for result in results:
+            result_item_id = int(result.url.split("=")[-1])
+            item = json.loads(result.text)
+            histories[result_item_id] = item
+        pause_futures(error_timer, f"Sleeping history fetching due to error timer being {error_timer} seconds")
+        while len(redo_urls) != 0:
+            addtl_results, redo_urls, error_timer = futures_results(create_history_futures(redo_urls))
+            results = results + addtl_results
+            pause_futures(error_timer, f"Sleeping history fetching due to error timer being {error_timer} seconds")
+        return histories, redo_urls
+
+
 # Deserializes resulting JSON specifically from history futures, used in `get_source_data`
-def deserialized_history(region, item_ids):
-    redo_urls = []
+def deserialize_history(region, item_ids):
+    # redo_urls = []
     history_urls = []
     histories = {}
     # chunk_length 10k doesn't seem to affect time too much, but need to test early in the new day
-    chunk_length = 300
+    chunk_length = 30000
     item_number = 0
     for item_id in item_ids:
         history_url = create_item_history_url(region, item_id)
@@ -211,22 +230,7 @@ def deserialized_history(region, item_ids):
         history_urls[item_number // chunk_length].append(history_url)
         histories[item_id] = []
         item_number += 1
-    for history_chunk in history_urls:
-        # TODO: go back and understand/cleanup futures_results better.
-        results, redo_urls, error_timer = futures_results(create_history_futures(history_chunk))
-        for result in results:
-            result_item_id = int(result.url.split("=")[-1])
-            item = json.loads(result.text)
-            histories[result_item_id] = item
-        if error_timer != 0:
-            print(f"Sleeping history fetching due to error timer being {error_timer} seconds")
-            sleep(error_timer + 1)
-        while len(redo_urls) != 0:
-            addtl_results, redo_urls, error_timer = futures_results(create_history_futures(redo_urls))
-            results = results + addtl_results
-            if error_timer != 0:
-                print(f"Sleeping history fetching due to error timer being {error_timer} seconds")
-                sleep(error_timer + 1)
+    histories, redo_urls = deserialize_history_chunk(history_urls, histories)
     return histories, redo_urls
 
 
@@ -245,11 +249,10 @@ def deserialize_order_names(ids):
 def get_source_data(region, regional_orders):
     regional_orders[region] = {}
     # Fetches all orders in a region
-    regional_orders[region]["allOrdersData"] = deserialized_orders_items(region_hubs[region][0], [], create_all_order_url)[0]
+    regional_orders[region]["allOrdersData"] = deserialize_order_items(region_hubs[region][0], [], create_all_order_url)[0]
     # Fetches all Active order item IDs in a region
-    region_item_ids = deserialized_orders_items(region_hubs[region][0], [], create_active_items_url)[0]
+    region_item_ids = deserialize_order_items(region_hubs[region][0], [], create_active_items_url)[0]
     # List of dictionaries containing category, id, and name data, used to extract name data for later processing
-    # TODO: perhaps volumetric info could be done similarly to `active_order_names`
     regional_orders[region]["active_order_names"] = deserialize_order_names(region_item_ids)
     active_orders_cleaned = []
     all_orders_cleaned = []
@@ -272,7 +275,7 @@ def get_source_data(region, regional_orders):
     if INCLUDE_HISTORY:
         # Dictionary: {item_id: [{history_day_a}, {historyi_day_b}], ...}
         print(f"{region} history pulling has started")
-        regional_orders[region]["activeOrderHistory"] = deserialized_history(region_hubs[region][0], region_item_ids)[0]
+        regional_orders[region]["activeOrderHistory"] = deserialize_history(region_hubs[region][0], region_item_ids)[0]
         print(f"{region} history pulling has ended")
 
 
@@ -336,34 +339,33 @@ def process_filtered_data(region, regional_min_max, actionable_data, regional_or
             diff = hsv - jsv
             jsv_sell_margin = 1 - (jsv / hsv)
             jbv_sell_margin = 1 - (jbv / hsv)
-            if PROCESS_DATA:
-                filter_values = {
-                        "jsv_margin": 0.17,
-                        "jsv_min": 70000000,
-                        "jbv_margin": 0.17,
-                        "jbv_min": 70000000,
+            filter_values = {
+                    "jsv_margin": 0.17,
+                    "jsv_min": 70000000,
+                    "jbv_margin": 0.17,
+                    "jbv_min": 70000000,
+                    }
+            final_filter = (
+                    jsv > filter_values["jsv_min"]
+                    and jsv_sell_margin > filter_values["jsv_margin"]
+                    ) or (
+                            jbv > filter_values["jbv_min"]
+                            and jbv_sell_margin > filter_values["jbv_margin"]
+                            )
+            if final_filter:
+                actionable_data[region][name] = {
+                        "name": name,
+                        "id": type_id,
+                        f"{region}sv": hsv,
+                        f"{region}bv": hbv,
+                        "jsv": jsv,
+                        "jbv": jbv,
+                        "diff": diff,
+                        "jsv_sell_margin": jsv_sell_margin,
+                        "jbv_sell_margin": jbv_sell_margin,
                         }
-                final_filter = (
-                        jsv > filter_values["jsv_min"]
-                        and jsv_sell_margin > filter_values["jsv_margin"]
-                        ) or (
-                                jbv > filter_values["jbv_min"]
-                                and jbv_sell_margin > filter_values["jbv_margin"]
-                                )
-                if final_filter:
-                    actionable_data[region][name] = {
-                            "name": name,
-                            "id": type_id,
-                            f"{region}sv": hsv,
-                            f"{region}bv": hbv,
-                            "jsv": jsv,
-                            "jbv": jbv,
-                            "diff": diff,
-                            "jsv_sell_margin": jsv_sell_margin,
-                            "jbv_sell_margin": jbv_sell_margin,
-                            }
-                    if INCLUDE_HISTORY:
-                        actionable_data[region][name]["history"] = regional_orders[region]["activeOrderHistory"][type_id]
+                if INCLUDE_HISTORY:
+                    actionable_data[region][name]["history"] = regional_orders[region]["activeOrderHistory"][type_id]
 
 
 def data_to_csv_gz(actionable_data, fields, filename, path):
@@ -395,14 +397,15 @@ def create_actionable_data():
         # Creates a set of data that captures the min sell/max buy order of a region
         filter_source_data(region, regional_orders, regional_min_max)
         # Uses result of `filter_source_data` and processes it for comparison on a per item basis
-        process_filtered_data(region, regional_min_max, actionable_data, regional_orders)
+        if PROCESS_DATA:
+            process_filtered_data(region, regional_min_max, actionable_data, regional_orders)
     # print(actionable_data["Jita"]["Stratios"])
     # print(actionable_data["Amarr"]["Stratios"])
     # print(actionable_data["Dodixie"]["Stratios"])
     # print(actionable_data["Rens"]["Stratios"])
     # print(actionable_data["Hek"]["Stratios"])
     for region in region_hubs:
-        if SAVE_PROCESSED_DATA and PROCESS_DATA:
+        if PROCESS_DATA and SAVE_PROCESSED_DATA:
             path = "./market_data/processed_data"
             if INCLUDE_HISTORY:
                 fields = [
