@@ -1,5 +1,6 @@
 #! /usr/bin/env python3
 from time import sleep
+from datetime import datetime, timedelta
 import re
 import csv
 import gzip
@@ -12,14 +13,16 @@ from requests_futures.sessions import FuturesSession  # type: ignore
 
 session = FuturesSession(max_workers=160)
 
-# Both PROCESS_DATA and SAVE_PROCESSED_DATA are necessary so that future implementations can utilized the processed data, and
-# independently decide to save it as a CSV
-PROCESS_DATA = True  # Does comparison calculation filters
-# To save processed data, you need to to save processed data in a CSV, both PROCESS_DATA and SAVE_PROCESSED_DATA need to be True
-SAVE_PROCESSED_DATA = True  # Save processed data
-SAVE_SOURCE_DATA = True
-PRINT_INFORMATIONAL_ERR_LIMITS = False  # set true to see informational error information for troubleshooting only.
-INCLUDE_HISTORY = True
+
+def find_last_downtime():
+    now_utc = datetime.utcnow()
+    downtime_today_utc = datetime(now_utc.year, now_utc.month, now_utc.day, 11, 5)
+    if now_utc <= downtime_today_utc:
+        last_downtime = downtime_today_utc - timedelta(days=1)
+    else:
+        last_downtime = downtime_today_utc
+    return last_downtime.timestamp()
+
 
 region_hubs = {
         "Jita": ["10000002", "60003760"],  # Do Not Delete. must always be on top
@@ -30,6 +33,30 @@ region_hubs = {
         "Venal": ["10000015", "60012577"],  # PF-QHK VII - Moon 6 - Guristas Logistic Support
         # "Omist": ["10000062", "1046165597585"],  # AXDX-F - Pet Sanctuary, needs auth, no NPC stations so will fail otherwise
         }
+
+
+def is_saved_market_history_data_stale():
+    are_markets_stale = {}
+    for region_name in region_hubs:
+        file_path = f"./market_data/source_data/{region_name}_activeOrderHistory_source.csv.gz"
+        # print(file_path)
+        if os.path.exists(file_path) and os.path.getctime(file_path) > LAST_DOWNTIME:
+            are_markets_stale[region_name] = False
+        else:
+            are_markets_stale[region_name] = True
+    return are_markets_stale
+
+
+# Both PROCESS_DATA and SAVE_PROCESSED_DATA are necessary so that future implementations can utilized the processed data, and
+# independently decide to save it as a CSV
+PROCESS_DATA = True  # Does comparison calculation filters
+# To save processed data, you need to to save processed data in a CSV, both PROCESS_DATA and SAVE_PROCESSED_DATA need to be True
+SAVE_PROCESSED_DATA = True  # Save processed data
+SAVE_SOURCE_DATA = True
+PRINT_INFORMATIONAL_ERR_LIMITS = False  # set true to see informational error information for troubleshooting only.
+INCLUDE_HISTORY = True
+LAST_DOWNTIME = find_last_downtime()
+ARE_SAVED_MARKETS_STALE = is_saved_market_history_data_stale()
 
 
 def create_all_order_url(region, page_number):
@@ -200,17 +227,21 @@ def deserialize_order_items(region, redo_urls, func):
     return deserialized_results, redo_urls
 
 
+def parse_history_results(results, histories):
+    for result in results:
+        result_item_id = int(result.url.split("=")[-1])
+        item_history = json.loads(result.text)
+        histories[result_item_id] = item_history
+
+
 def deserialize_history_chunk(history_urls, histories):
     for history_chunk in history_urls:
         results, redo_urls, error_timer = futures_results(create_history_futures(history_chunk))
-        for result in results:
-            result_item_id = int(result.url.split("=")[-1])
-            item = json.loads(result.text)
-            histories[result_item_id] = item
+        parse_history_results(results, histories)
         pause_futures(error_timer, f"Sleeping history fetching due to error timer being {error_timer} seconds")
         while len(redo_urls) != 0:
             addtl_results, redo_urls, error_timer = futures_results(create_history_futures(redo_urls))
-            results = results + addtl_results
+            parse_history_results(addtl_results, histories)
             pause_futures(error_timer, f"Sleeping history fetching due to error timer being {error_timer} seconds")
         return histories, redo_urls
 
@@ -245,6 +276,24 @@ def deserialize_order_names(ids):
     return all_names
 
 
+def get_source_history_data(region, regional_orders, region_item_ids):
+    # Dictionary: {item_id: [{history_day_a}, {historyi_day_b}], ...}
+    if ARE_SAVED_MARKETS_STALE[region]:
+        print(f"{region} history pulling has started")
+        regional_orders[region]["activeOrderHistory"] = deserialize_history(region_hubs[region][0], region_item_ids)[0]
+        print(f"{region} history pulling has ended")
+    else:
+        print(f"{region} history fetching from file has started")
+        histories = {}
+        history_file_path = f"./market_data/source_data/{region}_activeOrderHistory_source.csv.gz"
+        with gzip.open(history_file_path, 'rt') as history_csv:
+            reader = csv.DictReader(history_csv)
+            for row in reader:
+                histories[int(row['type_id'])] = row['history']
+            regional_orders[region]["activeOrderHistory"] = histories
+        print(f"{region} history fetching from file has ended")
+
+
 # Gets source data _per region_, removes any items that might cause issues, aggregates them to `regional_orders`
 def get_source_data(region, regional_orders):
     regional_orders[region] = {}
@@ -273,10 +322,7 @@ def get_source_data(region, regional_orders):
             all_orders_cleaned.append(regional_orders[region]["allOrdersData"][i])
     regional_orders[region]["allOrdersData"] = all_orders_cleaned
     if INCLUDE_HISTORY:
-        # Dictionary: {item_id: [{history_day_a}, {historyi_day_b}], ...}
-        print(f"{region} history pulling has started")
-        regional_orders[region]["activeOrderHistory"] = deserialize_history(region_hubs[region][0], region_item_ids)[0]
-        print(f"{region} history pulling has ended")
+        get_source_history_data(region, regional_orders, region_item_ids)
 
 
 def find_name(type_id, active_order_names, region):
@@ -313,6 +359,16 @@ def filter_source_data(region, regional_orders, regional_min_max):
                 ):
             regional_min_max[region][type_id]["max"] = order
             max_buy_order[type_id] = order["price"]
+
+
+def add_history_to_processed_data(regional_orders, region, actionable_data, name, type_id):
+    if ARE_SAVED_MARKETS_STALE[region]:
+        actionable_data[region][name]["history"] = regional_orders[region]["activeOrderHistory"][type_id]
+    else:
+        if type_id in regional_orders[region]["activeOrderHistory"]:
+            actionable_data[region][name]["history"] = regional_orders[region]["activeOrderHistory"][type_id]
+        else:
+            actionable_data[region][name]["history"] = []
 
 
 def process_filtered_data(region, regional_min_max, actionable_data, regional_orders):
@@ -365,7 +421,7 @@ def process_filtered_data(region, regional_min_max, actionable_data, regional_or
                         "jbv_sell_margin": jbv_sell_margin,
                         }
                 if INCLUDE_HISTORY:
-                    actionable_data[region][name]["history"] = regional_orders[region]["activeOrderHistory"][type_id]
+                    add_history_to_processed_data(regional_orders, region, actionable_data, name, type_id)
 
 
 def data_to_csv_gz(actionable_data, fields, filename, path):
@@ -441,7 +497,7 @@ def create_actionable_data():
                 if data_type != "activeOrderHistory":
                     fields = list(data[0].keys())
                     data_to_csv_gz(data, fields, filename, path)
-                else:
+                elif data_type == "activeOrderHistory" and ARE_SAVED_MARKETS_STALE[region]:
                     fields = ["type_id", "history"]
                     formatted_data = []
                     for type_id, history in data.items():
