@@ -39,7 +39,6 @@ def is_saved_market_history_data_stale():
     are_markets_stale = {}
     for region_name in region_hubs:
         file_path = f"./market_data/source_data/{region_name}_activeOrderHistory_source.csv.gz"
-        # print(file_path)
         if os.path.exists(file_path) and os.path.getctime(file_path) > LAST_DOWNTIME:
             are_markets_stale[region_name] = False
         else:
@@ -277,7 +276,7 @@ def deserialize_order_names(ids):
 
 
 def get_source_history_data(region, regional_orders, region_item_ids):
-    # Dictionary: {item_id: [{history_day_a}, {historyi_day_b}], ...}
+    # Dictionary: {item_id: [{history_day_1}, {history_day_2}], ...}
     if ARE_SAVED_MARKETS_STALE[region]:
         print(f"{region} history pulling has started")
         regional_orders[region]["activeOrderHistory"] = deserialize_history(region_hubs[region][0], region_item_ids)[0]
@@ -294,33 +293,54 @@ def get_source_history_data(region, regional_orders, region_item_ids):
         print(f"{region} history fetching from file has ended")
 
 
-# Gets source data _per region_, removes any items that might cause issues, aggregates them to `regional_orders`
-def get_source_data(region, regional_orders):
-    regional_orders[region] = {}
-    # Fetches all orders in a region
-    regional_orders[region]["allOrdersData"] = deserialize_order_items(region_hubs[region][0], [], create_all_order_url)[0]
-    # Fetches all Active order item IDs in a region
-    region_item_ids = deserialize_order_items(region_hubs[region][0], [], create_active_items_url)[0]
-    # List of dictionaries containing category, id, and name data, used to extract name data for later processing
-    regional_orders[region]["active_order_names"] = deserialize_order_names(region_item_ids)
-    active_orders_cleaned = []
-    all_orders_cleaned = []
-    cleaned_active_orders_ids = []
-    for i in range(len(regional_orders[region]["active_order_names"])):
+def remove_bad_orders_names(regional_orders, region):
+    active_orders_names_cleaned = []
+    for active_order_name in regional_orders[region]["active_order_names"]:
         # Data sanitizing for later processing - Remove blueprints and Expired items from active items
-        is_blueprint = re.match(r".+Blueprint$", regional_orders[region]["active_order_names"][i]["name"])
-        is_expired = re.match(r"^Expired", regional_orders[region]["active_order_names"][i]["name"])
-        is_ore_processing = re.match(r"\w+(\s\w+)?\sProcessing$", regional_orders[region]["active_order_names"][i]["name"])
+        is_blueprint = re.match(r".+Blueprint$", active_order_name["name"])
+        is_expired = re.match(r"^Expired", active_order_name["name"])
+        is_ore_processing = re.match(r"\w+(\s\w+)?\sProcessing$", active_order_name["name"])
         if not (is_blueprint or is_expired or is_ore_processing):
-            active_orders_cleaned.append(regional_orders[region]["active_order_names"][i])
-            cleaned_active_orders_ids.append(regional_orders[region]["active_order_names"][i]["id"])
-    regional_orders[region]["active_order_names"] = active_orders_cleaned
+            active_orders_names_cleaned.append(active_order_name)
+    return active_orders_names_cleaned
+
+
+def remove_bad_orders(regional_orders, region, region_item_ids):
+    active_orders_names_cleaned = remove_bad_orders_names(regional_orders, region)
+    all_orders_cleaned = []
+    cleaned_active_orders_ids = [active_order_name_cleaned["id"] for active_order_name_cleaned in active_orders_names_cleaned]
     removed_orders_id = list(set(region_item_ids)-set(cleaned_active_orders_ids))
-    region_item_ids = cleaned_active_orders_ids
     for i in range(len(regional_orders[region]["allOrdersData"])):
         if regional_orders[region]["allOrdersData"][i]["type_id"] not in removed_orders_id:
             all_orders_cleaned.append(regional_orders[region]["allOrdersData"][i])
-    regional_orders[region]["allOrdersData"] = all_orders_cleaned
+    return all_orders_cleaned, active_orders_names_cleaned, cleaned_active_orders_ids
+
+
+# Gets source data _per region_, removes any items that might cause issues, aggregates them to `regional_orders`
+def get_source_data(region, regional_orders):
+    regional_orders[region] = {}
+    # Fetches all orders in a region. regional_orders[region]["allOrdersData"] looks like:
+    #
+    # [{'duration': 90, 'is_buy_order': False, 'issued': '2025-01-28T20:37:14Z', 'location_id': 60003760,
+    # 'min_volume': 1, 'order_id': 6974687044, 'price': 420500000.0, 'range': 'region', 'system_id': 30000142,
+    # 'type_id': 35705, 'volume_remain': 1, 'volume_total': 1}, ... ]
+    region_name = region_hubs[region][0]
+    regional_orders[region]["allOrdersData"] = deserialize_order_items(region_name, [], create_all_order_url)[0]
+    # Fetches all Active order item IDs in a region, region_item_ids looks like:
+    #
+    # [31316, 31318, 27065, 31320, 31322, ...]
+    region_item_ids = deserialize_order_items(region_name, [], create_active_items_url)[0]
+    # List of dictionaries containing category, id, and name data, used to extract name data for later processing
+    # regional_orders[region]["active_order_names"] looks like:
+    #
+    # [{'category': 'inventory_type', 'id': 54360, 'name': "Women's Azure Abundance Jacket"},
+    # {'category': 'inventory_type', 'id': 21593, 'name': 'Mechanic Parts'}, ...]
+    regional_orders[region]["active_order_names"] = deserialize_order_names(region_item_ids)
+
+    clean_regional_order_data_and_names = remove_bad_orders(regional_orders, region, region_item_ids)
+    regional_orders[region]["allOrdersData"] = clean_regional_order_data_and_names[0]
+    regional_orders[region]["active_order_names"] = clean_regional_order_data_and_names[1]
+    region_item_ids = clean_regional_order_data_and_names[2]
     if INCLUDE_HISTORY:
         get_source_history_data(region, regional_orders, region_item_ids)
 
