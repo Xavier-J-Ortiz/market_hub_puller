@@ -1,5 +1,6 @@
+*.sw*
+__pycache__/
+config.py
 data/
 errors/
-__pycache__/
-*.sw*
 market_data/

@@ -1,4 +1,4 @@
-#! /usr/bin/env python3
+#!/usr/bin/env python3
 from time import sleep
 from datetime import datetime, timedelta
 import re
@@ -10,6 +10,7 @@ from concurrent.futures import as_completed
 
 from requests.exceptions import HTTPError, RequestException
 from requests_futures.sessions import FuturesSession  # type: ignore
+import config
 
 session = FuturesSession(max_workers=160)
 
@@ -24,15 +25,7 @@ def find_last_downtime():
     return last_downtime.timestamp()
 
 
-region_hubs = {
-        "Jita": ["10000002", "60003760"],  # Do Not Delete. must always be on top
-        "Amarr": ["10000043", "60008494"],
-        "Dodixie": ["10000032", "60011866"],
-        "Rens": ["10000030", "60004588"],
-        "Hek": ["10000042", "60005686"],
-        "Venal": ["10000015", "60012577"],  # PF-QHK VII - Moon 6 - Guristas Logistic Support
-        # "Omist": ["10000062", "1046165597585"],  # AXDX-F - Pet Sanctuary, needs auth, no NPC stations so will fail otherwise
-        }
+region_hubs = config.region_hubs
 
 
 def is_saved_market_history_data_stale():
@@ -352,7 +345,7 @@ def find_name(type_id, active_order_names, region):
     raise LookupError(f"Could not find the type_id: {type_id} in region: {region}")
 
 
-def filter_source_data(region, regional_orders, regional_min_max):
+def min_max_source_data(region, regional_orders, regional_min_max):
     regional_min_max[region] = {}
     pos_infinity = float("inf")
     neg_infinity = float("-inf")
@@ -471,8 +464,8 @@ def create_actionable_data():
         # Gets all source data, mainly active orders, names, and history
         get_source_data(region, regional_orders)
         # Creates a set of data that captures the min sell/max buy order of a region
-        filter_source_data(region, regional_orders, regional_min_max)
-        # Uses result of `filter_source_data` and processes it for comparison on a per item basis
+        min_max_source_data(region, regional_orders, regional_min_max)
+        # Uses result of `min_max_source_data` and processes it for comparison on a per item basis
         if PROCESS_DATA:
             process_filtered_data(region, regional_min_max, actionable_data, regional_orders)
     # print(actionable_data["Jita"]["Stratios"])
