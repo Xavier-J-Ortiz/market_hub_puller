@@ -147,9 +147,9 @@ def futures_results(futures):
                 error_limit_remaining = result.headers["x-esi-error-limit-remain"]
                 error_limit_time_to_reset = result.headers["x-esi-error-limit-reset"]
                 print(f"Error Limit Remaining: {error_limit_remaining} Limit-Rest {error_limit_time_to_reset} \n")
-            print("\n")
-            if int(error_limit_remaining) < 10 and int(error_limit_time_to_reset) >= 1:
-                error_timer = error_limit_time_to_reset
+                print("\n")
+                if int(error_limit_remaining) < 10 and int(error_limit_time_to_reset) >= 1:
+                    error_timer = error_limit_time_to_reset
             if ("Type not found!" not in result.text) and ("Type not tradable on market!" not in result.text):
                 redo_url = result.url
                 redo_urls.append(redo_url)
