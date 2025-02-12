@@ -357,7 +357,7 @@ def min_max_source_data(region, regional_orders, regional_min_max):
             min_sell_order[type_id] = pos_infinity
             max_buy_order[type_id] = neg_infinity
             regional_min_max[region][type_id] = {}
-            regional_min_max[region][type_id]["name"] = find_name(type_id, regional_orders[region]["active_order_names"], region)
+            regional_min_max[region][type_id]["name"] = find_name(type_id, regional_orders[region]["active_order_names"], region)["name"]
         if (
                 (not order["is_buy_order"])
                 & (order["location_id"] == int(region_hubs[region][1]))
@@ -404,7 +404,7 @@ def process_filtered_data(region, regional_min_max, actionable_data, regional_or
                 jbv = regional_min_max["Jita"][type_id]["max"]["price"]
             else:
                 jbv = float("nan")
-            name = regional_min_max["Jita"][type_id]["name"]["name"]
+            name = regional_min_max["Jita"][type_id]["name"]
             diff = hsv - jsv
             jsv_sell_margin = 1 - (jsv / hsv)
             jbv_sell_margin = 1 - (jbv / hsv)
