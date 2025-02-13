@@ -309,6 +309,13 @@ def remove_bad_orders(regional_orders, region, region_item_ids):
     return all_orders_cleaned, active_orders_names_cleaned, cleaned_active_orders_ids
 
 
+def create_item_ids(region, regional_orders):
+    region_item_ids = set()
+    for order in regional_orders[region]["allOrdersData"]:
+        region_item_ids.add(order["type_id"])
+    return list(region_item_ids)
+
+
 # Gets source data _per region_, removes any items that might cause issues, aggregates them to `regional_orders`
 def get_source_data(region, regional_orders):
     regional_orders[region] = {}
@@ -322,7 +329,8 @@ def get_source_data(region, regional_orders):
     # Fetches all Active order item IDs in a region, region_item_ids looks like:
     #
     # [31316, 31318, 27065, 31320, 31322, ...]
-    region_item_ids = deserialize_order_items(region_name, [], create_active_items_url)[0]
+    region_item_ids = create_item_ids(region, regional_orders)
+
     # List of dictionaries containing category, id, and name data, used to extract name data for later processing
     # regional_orders[region]["active_order_names"] looks like:
     #
