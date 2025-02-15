@@ -235,15 +235,13 @@ def deserialize_history_chunk(history_urls, histories):
             addtl_results, redo_urls, error_timer = futures_results(create_history_futures(redo_urls))
             parse_history_results(addtl_results, histories)
             pause_futures(error_timer, f"Sleeping history fetching due to error timer being {error_timer} seconds")
-        return histories, redo_urls
+    return histories, redo_urls
 
 
 # Deserializes resulting JSON specifically from history futures, used in `get_source_data`
 def deserialize_history(region, item_ids):
-    # redo_urls = []
     history_urls = []
     histories = {}
-    # chunk_length 10k doesn't seem to affect time too much, but need to test early in the new day
     chunk_length = 30000
     item_number = 0
     for item_id in item_ids:
@@ -253,8 +251,9 @@ def deserialize_history(region, item_ids):
         history_urls[item_number // chunk_length].append(history_url)
         histories[item_id] = []
         item_number += 1
-    histories, redo_urls = deserialize_history_chunk(history_urls, histories)
-    return histories, redo_urls
+    # Only need histories data at this point, so only what's in index zero
+    histories = deserialize_history_chunk(history_urls, histories)[0]
+    return histories
 
 
 def deserialize_order_names(ids):
@@ -268,22 +267,41 @@ def deserialize_order_names(ids):
     return all_names
 
 
+def find_missing_orders(region, regional_orders, region_item_ids, history_file_path):
+    missing_orders = list(set(region_item_ids) - set(regional_orders[region]["activeOrderHistory"].keys()))
+    if len(missing_orders) != 0:
+        print(f"Fetching missing orders from stale {region} cache.")
+        print(missing_orders)
+        missing_order_histories = deserialize_history(region_hubs[region][0], missing_orders)
+        regional_orders[region]["activeOrderHistory"].update(missing_order_histories)
+        fields = ["type_id", "history"]
+        with gzip.open(history_file_path, "at") as history_csv:
+            writer = csv.DictWriter(history_csv, fieldnames=fields)
+            for type_id, history in missing_order_histories.items():
+                writer.writerow({"type_id": type_id, "history": history})
+    print(f"{region} history fetching from file has ended")
+
+
+def load_history_cache(region, history_file_path):
+    print(f"{region} history fetching from file has started")
+    histories = {}
+    with gzip.open(history_file_path, 'rt') as history_csv:
+        reader = csv.DictReader(history_csv)
+        for row in reader:
+            histories[int(row['type_id'])] = row['history']
+    return histories
+
+
 def get_source_history_data(region, regional_orders, region_item_ids):
-    # Dictionary: {item_id: [{history_day_1}, {history_day_2}], ...}
     if ARE_SAVED_MARKETS_STALE[region]:
         print(f"{region} history pulling has started")
-        regional_orders[region]["activeOrderHistory"] = deserialize_history(region_hubs[region][0], region_item_ids)[0]
+        # Dictionary: {item_id: [{history_day_1}, {history_day_2}], ...}
+        regional_orders[region]["activeOrderHistory"] = deserialize_history(region_hubs[region][0], region_item_ids)
         print(f"{region} history pulling has ended")
     else:
-        print(f"{region} history fetching from file has started")
-        histories = {}
         history_file_path = f"./market_data/source_data/{region}_activeOrderHistory_source.csv.gz"
-        with gzip.open(history_file_path, 'rt') as history_csv:
-            reader = csv.DictReader(history_csv)
-            for row in reader:
-                histories[int(row['type_id'])] = row['history']
-            regional_orders[region]["activeOrderHistory"] = histories
-        print(f"{region} history fetching from file has ended")
+        regional_orders[region]["activeOrderHistory"] = load_history_cache(region, history_file_path)
+        find_missing_orders(region, regional_orders, region_item_ids, history_file_path)
 
 
 def remove_bad_orders_names(regional_orders, region):
@@ -337,7 +355,8 @@ def get_source_data(region, regional_orders):
     # [{'category': 'inventory_type', 'id': 54360, 'name': "Women's Azure Abundance Jacket"},
     # {'category': 'inventory_type', 'id': 21593, 'name': 'Mechanic Parts'}, ...]
     regional_orders[region]["active_order_names"] = deserialize_order_names(region_item_ids)
-
+    # clean_regional_order_data_and_names is the same structure as regional_orders[region]["active_order_names"],
+    # except it doesn't have items that will cause issues with history.
     clean_regional_order_data_and_names = remove_bad_orders(regional_orders, region, region_item_ids)
     regional_orders[region]["allOrdersData"] = clean_regional_order_data_and_names[0]
     regional_orders[region]["active_order_names"] = clean_regional_order_data_and_names[1]
@@ -476,11 +495,10 @@ def create_actionable_data():
         # Uses result of `min_max_source_data` and processes it for comparison on a per item basis
         if PROCESS_DATA:
             process_filtered_data(region, regional_min_max, actionable_data, regional_orders)
+    # Uncomment to see examples of actionable data:
+    #
     # print(actionable_data["Jita"]["Stratios"])
-    # print(actionable_data["Amarr"]["Stratios"])
     # print(actionable_data["Dodixie"]["Stratios"])
-    # print(actionable_data["Rens"]["Stratios"])
-    # print(actionable_data["Hek"]["Stratios"])
     for region in region_hubs:
         if PROCESS_DATA and SAVE_PROCESSED_DATA:
             path = "./market_data/processed_data"
