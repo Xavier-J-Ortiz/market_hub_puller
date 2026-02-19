@@ -5,9 +5,9 @@ Effort to consume EVE Online's ESI for sorting out items.
 ## Requirements
 
 Though previously, it was recommended to use `python3` and
-`python3-requres-future` packages on debian and ubuntu by running:
+`python3-requres-future` packages on Debian and Ubuntu by running:
 
-We've moved to using pyenv in order to have a more standard development platform
+We've moved to using `pyenv` in order to have a more standard development platform
 , and keep experience ubiquitous for development and when using the script.
 
 We recommend using the [Automatic Installer](https://github.com/pyenv/pyenv?tab=readme-ov-file#1-automatic-installer-recommended)
@@ -16,23 +16,28 @@ from the pyenv project.
 Below is one of the recommended ways to install `pyenv`.
 
 ```bash
-git clone https://github.com/pyenv/pyenv.git ~/.pyenv
+curl -fsSL https://pyenv.run | bash
 ```
 
 On install, the script has recommendations on what to add to your `.bashrc`.
 Please follow the suggestions shown on the output. Refer to the official
 [pyenv installation section](https://github.com/pyenv/pyenv?tab=readme-ov-file#installation)
-for further detail as these instructions may be out of date.
+for instructions on installing `pyenv`, and the
+[pyenv-virtualenv usage sections](https://github.com/pyenv/pyenv-virtualenv?tab=readme-ov-file#usage),
+particularly on how to use, create, and activate `virtualenv`s for further
+detail.
 
-Once successfully installed run:
+Once successfully installed, navigate to the root directory of this project and
+run:
 
 ```bash
-pyenv install
-
+pyenv install 3.14.3
+pyenv virtualenv 3.14.3 market-hub-puller_3_14_3
+pyenv local market-hub-puller_3_14_3
 pip install -r requirements
 ```
 
-The environment should be ready to use.
+The environment should be ready to use, and pyenv will load your sandboxed environment.
 
 ## How to Run
 
