@@ -5,6 +5,7 @@ import gzip
 import json
 import os
 import re
+import sys
 from concurrent.futures import as_completed
 from datetime import timedelta
 from time import sleep
@@ -645,8 +646,13 @@ def create_actionable_data():
 
 
 def main():
-    actionable_data = create_actionable_data()
-    return actionable_data
+    try:
+        create_actionable_data()
+        print("Actionable Data Created Successfully")
+        sys.exit(0)
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
