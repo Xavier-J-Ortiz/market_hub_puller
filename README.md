@@ -4,44 +4,50 @@ Effort to consume EVE Online's ESI for sorting out items.
 
 ## Requirements
 
-Though previously, it was recommended to use `python3` and
-`python3-requres-future` packages on Debian and Ubuntu by running:
+Though we recommended using `python3` and `python3-requres-future` packages from
+the Debian and Ubuntu repositories 🤢, we've modernized and are using the much
+faster `uv` to manage the `.venv` environment.
 
-We've moved to using `pyenv` in order to have a more standard development platform
-, and keep experience ubiquitous for development and when using the script.
-
-We recommend using the [Automatic Installer](https://github.com/pyenv/pyenv?tab=readme-ov-file#1-automatic-installer-recommended)
-from the pyenv project.
-
-Below is one of the recommended ways to install `pyenv`.
+For the best experience, we recommend installing `uv` locally as recommended in
+the [Installation // Standalone Installer](https://docs.astral.sh/uv/getting-started/installation/#standalone-installer):
 
 ```bash
-curl -fsSL https://pyenv.run | bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-On install, the script has recommendations on what to add to your `.bashrc`.
-Please follow the suggestions shown on the output. Refer to the official
-[pyenv installation section](https://github.com/pyenv/pyenv?tab=readme-ov-file#installation)
-for instructions on installing `pyenv`, and the
-[pyenv-virtualenv usage sections](https://github.com/pyenv/pyenv-virtualenv?tab=readme-ov-file#usage),
-particularly on how to use, create, and activate `virtualenv`s for further
-detail.
-
-Once successfully installed, navigate to the root directory of this project and
-run:
+Then, in the root directory run:
 
 ```bash
-pyenv install 3.14.3
-pyenv virtualenv 3.14.3 market-hub-puller_3_14_3
-pyenv local market-hub-puller_3_14_3
-pip install -r requirements
+$ uv sync
+...
+
+$ uv venv
+...
 ```
 
-The environment should be ready to use, and pyenv will load your sandboxed environment.
+And you should be good to go using:
+
+```bash
+$ uv run fetch_data.py
+...
+```
+
+or if you like being _within_ the venv with:
+
+```bash
+$ source .venv/bin/activate
+# Do your python things
+
+$ deactivate
+# go back to being boring
+```
 
 ## How to Run
 
-Specify what region hubs you want to do analysis on. Default has the 5 high sec npc stations, located in Jita, Amarr, Rens, and Hek. Other locations can be added, so long as the `Jita` entry is at the top of the dict, and their region ID and hub ID is specified in the `region_hubs` dictionary. Example shown below:
+Specify what region hubs you want to do analysis on. Default has the 5 high sec
+NPC stations, located in Jita, Amarr, Rens, and Hek. Other locations can be
+added, so long as the `Jita` entry is at the top of the dict, and their region
+ID and hub ID is specified in the `region_hubs` dictionary. Example shown below:
 
 ```python3
 region_hubs = {
