@@ -1,25 +1,33 @@
-import datetime
 import json
-from datetime import timedelta
+from collections.abc import Callable
 
 import api.client as cl
 import api.urls as u
-import fetch_data as m
 import processing.analysis as an
 import processing.cache as c
-import processing.csv as df
 from config import region_hubs
-from processing.constants import INCLUDE_HISTORY
+from processing.constants import (
+    INCLUDE_HISTORY,
+    Active_order_ids,
+    Active_order_names,
+    Order_data,
+    Order_name,
+    Regional_orders,
+)
 
 
-def find_name(type_id, active_order_names, region):
+def find_name(
+    type_id: int, active_order_names: Active_order_names, region: str
+) -> Order_name:
     for active_order_name in active_order_names:
         if active_order_name["id"] == type_id:
             return active_order_name
     raise LookupError(f"Could not find the type_id: {type_id} in region: {region}")
 
 
-def deserialize_order_item_p1(region, func):
+def deserialize_order_item_p1(
+    region: str, func: Callable[[str, int], str]
+) -> tuple[list[Order_data], int]:
     deserialized_results = []
     # `p1_results` are the raw results of a first page of a request
     #   `redo_urls` is a list of URLs that were not able to be loaded, and require to be
@@ -39,17 +47,23 @@ def deserialize_order_item_p1(region, func):
             error_timer,
             f"Sleep p1 order fetch due to error timer being {error_timer} seconds",
         )
-    p1_deserialized_result = json.loads(p1_result[0].text)
+    p1_deserialized_result: Order_data = json.loads(p1_result[0].text)
     total_pages = int(p1_result[0].headers["x-pages"])
     deserialized_results += p1_deserialized_result
+    # print(deserialized_results)
     return deserialized_results, total_pages
 
 
-def deserialize_order_items_p2_onwards(region, total_pages, deserialized_results, func):
+def deserialize_order_items_p2_onwards(
+    region: str,
+    total_pages: int,
+    deserialized_results: list[Order_data],
+    func: Callable[[str, int], str],
+) -> tuple[list[Order_data], list[str]]:
     urls = []
     chunk_length = 30000
     for page in range(2, total_pages + 1):
-        url = func(region, str(page))
+        url = func(region, page)
         if (page - 2) % chunk_length == 0:
             urls.append([])
         # urls is a list of (at most 100 url) lists.
@@ -79,7 +93,11 @@ def deserialize_order_items_p2_onwards(region, total_pages, deserialized_results
 
 
 # Deserializes resulting JSON from futures, used in `get_source_data`
-def deserialize_order_items(region, redo_urls, func):
+def deserialize_order_items(
+    region: str,
+    redo_urls: list[str],
+    func: Callable[[str, int], str],
+) -> tuple[list[Order_data], list[str]]:
     if len(redo_urls) == 0:
         deserialized_results, total_pages = deserialize_order_item_p1(region, func)
     if len(redo_urls) == 0:
@@ -89,7 +107,7 @@ def deserialize_order_items(region, redo_urls, func):
     return deserialized_results, redo_urls
 
 
-def deserialize_order_names(ids):
+def deserialize_order_names(ids: list[int]) -> Active_order_names:
     all_names = []
     item_ids = u.create_name_urls_json_headers(ids)
     all_futures = cl.create_post_futures(item_ids)
@@ -102,7 +120,7 @@ def deserialize_order_names(ids):
 
 # Gets source data _per region_, removes any items that might cause issues, aggregates
 #   them to `regional_orders` within the main object.
-def get_source_data(region, regional_orders):
+def get_source_data(region: str, regional_orders: Regional_orders) -> None:
     regional_orders[region] = {}
     # Fetches all orders in a region. regional_orders[region]["allOrdersData"] looks
     #  like:
@@ -111,14 +129,18 @@ def get_source_data(region, regional_orders):
     #   'location_id': 60003760, 'min_volume': 1, 'order_id': 6974687044,
     #   'price': 420500000.0, 'range': 'region', 'system_id': 30000142,
     #   'type_id': 35705, 'volume_remain': 1, 'volume_total': 1}, ... ]
+    #
+    #   https://developers.eveonline.com/api-explorer#/operations/GetMarketsRegionIdOrders
     region_name = region_hubs[region][0]
     regional_orders[region]["allOrdersData"] = deserialize_order_items(
         region_name, [], u.create_all_order_url
     )[0]
-    # Fetches all Active order item IDs in a region, region_item_ids looks like:
+    # Fetches all Active order item IDs in a region extracted from
+    #   regional_orders[region]["allOrdersData"] fetched from line above,
+    #   region_item_ids looks like:
     #
-    # [31316, 31318, 27065, 31320, 31322, ...]
-    region_item_ids = u.create_item_ids(region, regional_orders)
+    #   [31316, 31318, 27065, 31320, 31322, ...]
+    region_item_ids: Active_order_ids = u.create_item_ids(region, regional_orders)
 
     # List of dictionaries containing category, id, and name data, used to extract name
     #   data for later processing
@@ -130,9 +152,6 @@ def get_source_data(region, regional_orders):
     regional_orders[region]["active_order_names"] = deserialize_order_names(
         region_item_ids
     )
-    # clean_regional_order_data_and_names is the same structure as
-    #   regional_orders[region]["active_order_names"],
-    # except it doesn't have items that will cause issues with history.
     clean_regional_order_data_and_names = an.remove_bad_orders(
         regional_orders, region, region_item_ids
     )

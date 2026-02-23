@@ -2,40 +2,27 @@ import csv
 import gzip
 import os
 
-import fetch_data as m
 import processing.analysis as an
 import processing.deserialize as ds
 from config import region_hubs
-from processing.constants import INCLUDE_HISTORY, LAST_DOWNTIME
-
-# Both PROCESS_DATA and SAVE_PROCESSED_DATA are necessary so that future implementations
-#   can utilized the processed data, and independently decide to save it as a CSV
-PROCESS_DATA = True  # Does comparison calculation filters
-# To save processed data, you need to to save processed data in a CSV, both PROCESS_DATA
-#   and SAVE_PROCESSED_DATA need to be True
-SAVE_PROCESSED_DATA = True  # Save processed data
-SAVE_SOURCE_DATA = True
-ARE_SAVED_MARKETS_STALE = {}
-
-
-def is_saved_market_history_data_stale():
-    are_markets_stale = {}
-    global ARE_SAVED_MARKETS_STALE
-    for region_name in region_hubs:
-        file_path = (
-            f"./market_data/source_data/{region_name}_activeOrderHistory_source.csv.gz"
-        )
-        if os.path.exists(file_path) and os.path.getctime(file_path) > LAST_DOWNTIME:
-            are_markets_stale[region_name] = False
-        else:
-            are_markets_stale[region_name] = True
-    ARE_SAVED_MARKETS_STALE = are_markets_stale
+from processing.constants import (
+    ARE_SAVED_MARKETS_STALE,
+    INCLUDE_HISTORY,
+    PROCESS_DATA,
+    SAVE_PROCESSED_DATA,
+    SAVE_SOURCE_DATA,
+    Regional_actionable_data,
+    Regional_min_max,
+    Regional_orders,
+)
 
 
-is_saved_market_history_data_stale()
-
-
-def data_to_csv_gz(actionable_data, fields, filename, path):
+def data_to_csv_gz(
+    actionable_data: dict | list,
+    fields: list[str],
+    filename: str,
+    path: str,
+) -> None:
     if not os.path.exists(path):
         os.makedirs(path)
     if os.path.exists(filename):
@@ -54,10 +41,10 @@ def data_to_csv_gz(actionable_data, fields, filename, path):
             writer.writerows(actionable_data)
 
 
-def create_actionable_data():
-    regional_orders = {}
-    regional_min_max = {}
-    actionable_data = {}
+def create_actionable_data() -> Regional_actionable_data:
+    regional_orders: Regional_orders = {}
+    regional_min_max: Regional_min_max = {}
+    actionable_data: Regional_actionable_data = {}
     for region in region_hubs:
         # Gets all source data, mainly active orders, names, and history
         ds.get_source_data(region, regional_orders)
@@ -73,6 +60,8 @@ def create_actionable_data():
     #
     # print(actionable_data["Jita"]["Stratios"])
     # print(actionable_data["Dodixie"]["Stratios"])
+    #
+    # TODO: Provide an example of expanded actionable_data[region][item_name]
     for region in region_hubs:
         if PROCESS_DATA and SAVE_PROCESSED_DATA:
             path = "./market_data/processed_data"
@@ -107,12 +96,13 @@ def create_actionable_data():
             path = "./market_data/source_data"
             for data_type, data in regional_orders[region].items():
                 filename = f"{region}_{data_type}_source.csv.gz"
-                if data_type != "activeOrderHistory":
+                if data_type != "activeOrderHistory" and isinstance(data, list):
                     fields = list(data[0].keys())
                     data_to_csv_gz(data, fields, filename, path)
                 elif (
                     data_type == "activeOrderHistory"
                     and ARE_SAVED_MARKETS_STALE[region]
+                    and isinstance(data, dict)
                 ):
                     fields = ["type_id", "history"]
                     formatted_data = []

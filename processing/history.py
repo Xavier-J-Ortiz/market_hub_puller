@@ -1,10 +1,15 @@
 import json
 
+from requests import Response
+
 import api.client as cl
 import api.urls as u
+from processing.constants import All_order_history
 
 
-def deserialize_history_chunk(history_urls, histories):
+def deserialize_history_chunk(
+    history_urls: list[list[str]], histories: All_order_history
+) -> tuple[All_order_history, list[str]]:
     for history_chunk in history_urls:
         results, redo_urls, error_timer = cl.futures_results(
             cl.create_history_futures(history_chunk)
@@ -28,7 +33,7 @@ def deserialize_history_chunk(history_urls, histories):
 
 # Deserializes resulting JSON specifically from history futures, used in
 #  `get_source_data`
-def deserialize_history(region, item_ids):
+def deserialize_history(region: str, item_ids: list[int]) -> All_order_history:
     history_urls = []
     histories = {}
     chunk_length = 30000
@@ -43,7 +48,9 @@ def deserialize_history(region, item_ids):
     return histories
 
 
-def parse_history_results(results, histories):
+def parse_history_results(
+    results: list[Response], histories: All_order_history
+) -> None:
     for result in results:
         result_item_id = int(result.url.split("=")[-1])
         item_history = json.loads(result.text)

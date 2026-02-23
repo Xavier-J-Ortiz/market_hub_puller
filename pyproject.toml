@@ -10,12 +10,13 @@ dependencies = [
     "idna==3.11",
     "requests==2.32.5",
     "requests-futures==1.0.2",
+    "tomli>=2.4.0",
     "urllib3==2.6.3",
 ]
 
 [tool.ruff]
 line-length = 88
-target-version="py314"
+target-version = "py314"
 
 [tool.ruff.lint]
 select = [
@@ -35,5 +36,6 @@ select = [
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
-[tool.ty]
-target-version="py314"
+
+[tool.ty.environment]
+target-version = "3.14"
