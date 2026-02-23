@@ -1,50 +1,67 @@
-ID_SEGMENT_CHUNK = 1000
+from typing import cast
+
+from processing.constants import All_orders_data, Regional_orders
+
+ID_SEGMENT_CHUNK: int = 1000
 
 
-def create_all_order_url(region, page_number):
+def create_all_order_url(region: str, page_number: int) -> str:
     url_base = "https://esi.evetech.net/latest/markets/"
     url_end = "/orders/?datasource=tranquility&order_type=all&page="
     url = url_base + str(region) + url_end + str(page_number)
     return url
 
 
-def create_active_items_url(region, page_number):
+def create_active_items_url(region: str, page_number: int) -> str:
     url_base = "https://esi.evetech.net/latest/markets/"
     url_end = "/types/?datasource=tranquility&page="
     url = url_base + str(region) + url_end + str(page_number)
     return url
 
 
-def create_item_history_url(region, item_id):
+def create_item_history_url(region: str, item_id: int) -> str:
     url_base = "https://esi.evetech.net/latest/markets/"
     url_end = "/history/?datasource=tranquility&page=1&type_id="
     url = url_base + str(region) + url_end + str(item_id)
     return url
 
 
-def create_name_urls_json_headers(ids):
-    urls_json_headers = []
+def create_name_urls_json_headers(
+    ids: list[int],
+) -> list[tuple[str, list[int], dict[str, str]]]:
+    urls_json_headers: list[tuple[str, list[int], dict[str, str]]] = []
     url = "https://esi.evetech.net/latest/universe/names/?datasource=tranquility"
-    header = {
+    # TODO: `header` can probably be de-duplicated. If we know we are create post
+    #   futures, we don't need to add the headers to every URL. Changes need to be made
+    #   in `api.client.py` as well.
+    header: dict[str, str] = {
         "accept": "application/json",
         "Content-Type": "application/json",
         "Cache-Control": "no-cache",
     }
     if len(ids) <= ID_SEGMENT_CHUNK:
-        id_segment = ids
-        urls_json_headers.append([url, id_segment, header])
+        id_segment: list[int] = ids
+        urls_json_headers.append((url, id_segment, header))
         return urls_json_headers
-    segmented_ids = []
-    for i in range(0, len(ids), 1000):
-        end = 1000 + i
+    segmented_ids: list[list[int]] = []
+    for i in range(0, len(ids), ID_SEGMENT_CHUNK):
+        end: int = ID_SEGMENT_CHUNK + i
         segmented_ids.append(ids[i:end])
     for id_segment in segmented_ids:
-        urls_json_headers.append([url, id_segment, header])
+        urls_json_headers.append((url, id_segment, header))
     return urls_json_headers
 
 
-def create_item_ids(region, regional_orders):
-    region_item_ids = set()
-    for order in regional_orders[region]["allOrdersData"]:
-        region_item_ids.add(order["type_id"])
+def create_item_ids(region: str, regional_orders: Regional_orders) -> list[int]:
+    region_item_ids: set[int] = set()
+    orders: All_orders_data = cast(
+        All_orders_data, regional_orders[region]["allOrdersData"]
+    )
+    for order in orders:
+        if isinstance(order["type_id"], int):
+            region_item_ids.add(order["type_id"])
+        else:
+            raise TypeError(
+                f"`type_id` is expected to be `int`, but was {type(order['type_id'])}"
+            )
     return list(region_item_ids)
