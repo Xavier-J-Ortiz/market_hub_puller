@@ -3,6 +3,7 @@ import gzip
 
 import processing.csv as df
 import processing.deserialize as ds
+import processing.history as hs
 from config import region_hubs
 
 
@@ -10,7 +11,7 @@ def get_source_history_data(region, regional_orders, region_item_ids):
     if df.ARE_SAVED_MARKETS_STALE[region]:
         print(f"{region} history pulling has started")
         # Dictionary: {item_id: [{history_day_1}, {history_day_2}], ...}
-        regional_orders[region]["activeOrderHistory"] = ds.deserialize_history(
+        regional_orders[region]["activeOrderHistory"] = hs.deserialize_history(
             region_hubs[region][0], region_item_ids
         )
         print(f"{region} history pulling has ended")
@@ -31,7 +32,7 @@ def find_missing_orders(region, regional_orders, region_item_ids, history_file_p
     if len(missing_orders) != 0:
         print(f"Fetching missing orders from stale {region} cache.")
         print(missing_orders)
-        missing_order_histories = ds.deserialize_history(
+        missing_order_histories = hs.deserialize_history(
             region_hubs[region][0], missing_orders
         )
         regional_orders[region]["activeOrderHistory"].update(missing_order_histories)

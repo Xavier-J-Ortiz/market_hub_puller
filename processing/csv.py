@@ -5,7 +5,8 @@ import os
 import fetch_data as m
 import processing.analysis as an
 import processing.deserialize as ds
-from config import LAST_DOWNTIME, region_hubs
+from config import region_hubs
+from processing.constants import INCLUDE_HISTORY, LAST_DOWNTIME
 
 # Both PROCESS_DATA and SAVE_PROCESSED_DATA are necessary so that future implementations
 #   can utilized the processed data, and independently decide to save it as a CSV
@@ -14,7 +15,6 @@ PROCESS_DATA = True  # Does comparison calculation filters
 #   and SAVE_PROCESSED_DATA need to be True
 SAVE_PROCESSED_DATA = True  # Save processed data
 SAVE_SOURCE_DATA = True
-INCLUDE_HISTORY = ds.INCLUDE_HISTORY
 ARE_SAVED_MARKETS_STALE = {}
 
 

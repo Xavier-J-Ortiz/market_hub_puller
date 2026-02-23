@@ -4,6 +4,7 @@ import fetch_data as m
 import processing.csv as df
 import processing.deserialize as ds
 from config import region_hubs
+from processing.constants import INCLUDE_HISTORY
 
 
 def min_max_source_data(region, regional_orders, regional_min_max):
@@ -86,7 +87,7 @@ def process_filtered_data(region, regional_min_max, actionable_data, regional_or
                     "jsv_sell_margin": jsv_sell_margin,
                     "jbv_sell_margin": jbv_sell_margin,
                 }
-                if ds.INCLUDE_HISTORY:
+                if INCLUDE_HISTORY:
                     add_history_to_processed_data(
                         regional_orders, region, actionable_data, name, type_id
                     )
