@@ -57,14 +57,17 @@ def futures_results(futures):
         result = response.result()
         try:
             result.raise_for_status()
-            error_limit_remaining = result.headers["x-esi-error-limit-remain"]
-            if error_limit_remaining != "100" and PRINT_INFORMATIONAL_ERR_LIMITS:
-                error_limit_time_to_reset = result.headers["x-esi-error-limit-reset"]
-                print(
-                    f"INFORMATIONAL: Though no error, for {result.url} the Error Limit "
-                    f"Remaning: {error_limit_remaining} Limit-Rest "
-                    f"{error_limit_time_to_reset} \n\n"
-                )
+            if "x-esi-error-limit-remain" in result.headers:
+                error_limit_remaining: str = result.headers["x-esi-error-limit-remain"]
+                if error_limit_remaining != "100" and PRINT_INFORMATIONAL_ERR_LIMITS:
+                    error_limit_time_to_reset: str = result.headers[
+                        "x-esi-error-limit-reset"
+                    ]
+                    print(
+                        f"INFORMATIONAL: Though no error, for {result.url} the Error Limit "
+                        f"Remaning: {error_limit_remaining} Limit-Rest "
+                        f"{error_limit_time_to_reset} \n\n"
+                    )
         except HTTPError:
             print(
                 f"Received status code {result.status_code} from {result.url} With "
