@@ -55,9 +55,9 @@ Order_name = dict[str, str | int]
 Active_order_names = list[Order_name]
 Order_data = dict[str, int | bool | str | float]
 All_orders_data = list[Order_data]
-Futures_results = tuple[list[Response], list[str], int]
 All_order_history = dict[int, str | float | int]
 Regional_orders = dict[
     str, dict[str, All_orders_data | Active_order_names | All_order_history]
 ]
+
 Regional_min_max = dict[str, dict[int, dict[str, Any]]]

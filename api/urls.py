@@ -1,5 +1,7 @@
-from typing import cast
+from dataclasses import dataclass
+from typing import TypedDict, cast
 
+from api.client import UrlJsonHeader
 from processing.constants import All_orders_data, Regional_orders
 
 ID_SEGMENT_CHUNK: int = 1000
@@ -26,11 +28,9 @@ def create_item_history_url(region: str, item_id: int) -> str:
     return url
 
 
-def create_name_urls_json_headers(
-    ids: list[int],
-) -> list[tuple[str, list[int], dict[str, str]]]:
-    urls_json_headers: list[tuple[str, list[int], dict[str, str]]] = []
-    url = "https://esi.evetech.net/latest/universe/names/?datasource=tranquility"
+def create_name_urls_json_headers(ids: list[int]) -> list[UrlJsonHeader]:
+    ujhs: list[UrlJsonHeader] = []
+    url: str = "https://esi.evetech.net/latest/universe/names/?datasource=tranquility"
     # TODO: `header` can probably be de-duplicated. If we know we are create post
     #   futures, we don't need to add the headers to every URL. Changes need to be made
     #   in `api.client.py` as well.
@@ -41,15 +41,37 @@ def create_name_urls_json_headers(
     }
     if len(ids) <= ID_SEGMENT_CHUNK:
         id_segment: list[int] = ids
-        urls_json_headers.append((url, id_segment, header))
-        return urls_json_headers
+        ujhs.append(UrlJsonHeader(url=url, ids=id_segment, header=header))
+        return ujhs
     segmented_ids: list[list[int]] = []
     for i in range(0, len(ids), ID_SEGMENT_CHUNK):
         end: int = ID_SEGMENT_CHUNK + i
         segmented_ids.append(ids[i:end])
     for id_segment in segmented_ids:
-        urls_json_headers.append((url, id_segment, header))
-    return urls_json_headers
+        ujhs.append(UrlJsonHeader(url=url, ids=id_segment, header=header))
+
+    return ujhs
+
+
+class GlobalOrders(TypedDict):
+    region: str
+    regionalOrders: list[Order]
+
+
+@dataclass
+class Order:
+    duration: int
+    is_buy_order: bool
+    issued: str
+    location_id: int
+    min_volume: int
+    order_id: int
+    price: float
+    range: str
+    system_id: int
+    type_id: int
+    volume_remain: int
+    volume_total: int
 
 
 def create_item_ids(region: str, regional_orders: Regional_orders) -> list[int]:
