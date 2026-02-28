@@ -11,24 +11,21 @@ def deserialize_history_chunk(
     history_urls: list[list[str]], histories: All_order_history
 ) -> tuple[All_order_history, list[str]]:
     for history_chunk in history_urls:
-        results, redo_urls, error_timer = cl.futures_results(
-            cl.create_history_futures(history_chunk)
-        )
-        parse_history_results(results, histories)
+        fr = cl.futures_results(cl.create_history_futures(history_chunk))
+        parse_history_results(fr.results, histories)
         cl.pause_futures(
-            error_timer,
-            f"Sleep history fetch due to error timer being {error_timer} seconds",
+            fr.error_timer,
+            f"Sleep history fetch due to error timer being {fr.error_timer} seconds",
         )
-        while len(redo_urls) != 0:
-            addtl_results, redo_urls, error_timer = cl.futures_results(
-                cl.create_history_futures(redo_urls)
-            )
-            parse_history_results(addtl_results, histories)
+        while len(fr.redo_urls) != 0:
+            fr = cl.futures_results(cl.create_history_futures(fr.redo_urls))
+            parse_history_results(fr.results, histories)
             cl.pause_futures(
-                error_timer,
-                f"Sleep history fetch due to error timer being {error_timer} seconds",
+                fr.error_timer,
+                f"Sleep history fetch due to error timer being {fr.error_timer} "
+                "seconds",
             )
-    return histories, redo_urls
+    return histories, fr.redo_urls
 
 
 # Deserializes resulting JSON specifically from history futures, used in

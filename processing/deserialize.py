@@ -32,23 +32,21 @@ def deserialize_order_item_p1(
     # `p1_results` are the raw results of a first page of a request
     #   `redo_urls` is a list of URLs that were not able to be loaded, and require to be
     #   requesting again
-    p1_result, redo_urls, error_timer = cl.futures_results(
-        cl.create_futures([func(region, 1)])
-    )
+    fr = cl.futures_results(cl.create_futures([func(region, 1)]))
     cl.pause_futures(
-        error_timer,
-        f"Sleep p1 order fetch due to error timer being {error_timer} seconds",
+        fr.error_timer,
+        f"Sleep p1 order fetch due to error timer being {fr.error_timer} seconds",
     )
-    while len(redo_urls) != 0:
-        p1_result, redo_urls, error_timer = cl.futures_results(
-            cl.create_futures(redo_urls)
+    while len(fr.redo_urls) != 0:
+        fr.p1_result, fr.redo_urls, fr.error_timer = cl.futures_results(
+            cl.create_futures(fr.redo_urls)
         )
         cl.pause_futures(
-            error_timer,
-            f"Sleep p1 order fetch due to error timer being {error_timer} seconds",
+            fr.error_timer,
+            f"Sleep p1 order fetch due to error timer being {fr.error_timer} seconds",
         )
-    p1_deserialized_result: Order_data = json.loads(p1_result[0].text)
-    total_pages = int(p1_result[0].headers["x-pages"])
+    p1_deserialized_result: Order_data = json.loads(fr.results[0].text)
+    total_pages = int(fr.results[0].headers["x-pages"])
     deserialized_results += p1_deserialized_result
     # print(deserialized_results)
     return deserialized_results, total_pages
@@ -70,26 +68,26 @@ def deserialize_order_items_p2_onwards(
         urls[(page - 2) // chunk_length].append(url)
     for chunk_urls in urls:
         pages_futures = cl.create_futures(chunk_urls)
-        pages_results, redo_urls, error_timer = cl.futures_results(pages_futures)
-        for result in pages_results:
+        fr = cl.futures_results(pages_futures)
+        for result in fr.results:
             deserialized_result = json.loads(result.text)
             deserialized_results += deserialized_result
         cl.pause_futures(
-            error_timer,
-            f"Sleep order fetch due to error timer being {error_timer} seconds",
+            fr.error_timer,
+            f"Sleep order fetch due to error timer being {fr.error_timer} seconds",
         )
-        while len(redo_urls) != 0:
-            pages_futures = cl.create_futures(redo_urls)
-            pages_results, redo_urls, error_timer = cl.futures_results(pages_futures)
-            for result in pages_results:
+        while len(fr.redo_urls) != 0:
+            pages_futures = cl.create_futures(fr.redo_urls)
+            fr = cl.futures_results(pages_futures)
+            for result in fr.results:
                 deserialized_result = json.loads(result.text)
                 deserialized_results += deserialized_result
             cl.pause_futures(
-                error_timer,
-                f"Sleep redo order fetch due to error timer being {error_timer} \
+                fr.error_timer,
+                f"Sleep redo order fetch due to error timer being {fr.error_timer} \
                         seconds",
             )
-    return deserialized_results, redo_urls
+    return deserialized_results, fr.redo_urls
 
 
 # Deserializes resulting JSON from futures, used in `get_source_data`
@@ -111,7 +109,7 @@ def deserialize_order_names(ids: list[int]) -> Active_order_names:
     all_names = []
     item_ids = u.create_name_urls_json_headers(ids)
     all_futures = cl.create_post_futures(item_ids)
-    results = cl.futures_results(all_futures)[0]
+    results = cl.futures_results(all_futures).results
     for result in results:
         names = json.loads(result.text)
         all_names += names
