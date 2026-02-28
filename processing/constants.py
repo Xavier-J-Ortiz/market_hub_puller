@@ -50,14 +50,74 @@ SAVE_SOURCE_DATA = True
 #   to Dataclass it up.
 Actionable_data = dict[str, dict[str, Any]]
 Regional_actionable_data = dict[str, Actionable_data]
-Active_order_ids = list[int]
-Order_name = dict[str, str | int]
-Active_order_names = list[Order_name]
-Order_data = dict[str, int | bool | str | float]
-All_orders_data = list[Order_data]
-All_order_history = dict[int, str | float | int]
-Regional_orders = dict[
-    str, dict[str, All_orders_data | Active_order_names | All_order_history]
-]
+# Active_order_ids = list[int]
+# Order_name = dict[str, str | int]
+# Active_order_names = list[Order_name]
+# Order_data = dict[str, int | bool | str | float]
+# All_orders_data = list[Order_data]
+# All_order_history = dict[int, str | float | int]
+# Regional_orders = dict[
+#     # str, dict[str, All_orders_data | Active_order_names | All_order_history]
+#     # str, dict[str, Active_order_names | All_order_history]
+#     str, dict[str, All_order_history]
+# ]
 
 Regional_min_max = dict[str, dict[int, dict[str, Any]]]
+
+
+@dataclass
+class HistoryDataPoint:
+    # A single history data point from a list of history data points of a given type_id fetched from https://developers.eveonline.com/api-explorer#/operations/GetMarketsRegionIdHistory
+    average: float
+    date: str
+    highest: float
+    lowest: float
+    order_count: int
+    volume: int
+
+
+@dataclass
+class ItemHistory:
+    # An list of history data points from a given type_id fetched from https://developers.eveonline.com/api-explorer#/operations/GetMarketsRegionIdHistory
+    type_id: int
+    history: list[HistoryDataPoint]
+
+
+@dataclass
+class NameData:
+    # One name data from the list of names fetched from https://developers.eveonline.com/api-explorer#/operations/PostUniverseNames
+    category: str
+    id: int
+
+
+@dataclass
+class Order:
+    # One order from the list of orders fetched from https://developers.eveonline.com/api-explorer#/operations/GetMarketsRegionIdOrders
+    duration: int
+    is_buy_order: bool
+    issued: str
+    location_id: int
+    min_volume: int
+    order_id: int
+    price: float
+    range: str
+    system_id: int
+    type_id: int
+    volume_remain: int
+    volume_total: int
+
+
+@dataclass
+# Will (eventually) contain structures of All_orders_data, Active_order_names, and
+#   All_order_history of a given region
+class RegionOrdersData:
+    # https://developers.eveonline.com/api-explorer#/operations/GetMarketsRegionIdOrders
+    all_orders_data: list[Order]
+    active_order_names: list[NameData]
+    all_order_history: list[ItemHistory]
+
+
+# GlobalOrders points to all order data relevant to a given region:str
+# TODO: think of a better word than Global, as this would be universal, but we're not
+#   getting all the universe's orders.
+GlobalOrders = dict[str, RegionOrdersData]
