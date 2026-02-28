@@ -1,8 +1,6 @@
 from dataclasses import dataclass
-from typing import TypedDict, cast
 
 from api.client import UrlJsonHeader
-from processing.constants import All_orders_data, Regional_orders
 
 ID_SEGMENT_CHUNK: int = 1000
 
@@ -53,11 +51,6 @@ def create_name_urls_json_headers(ids: list[int]) -> list[UrlJsonHeader]:
     return ujhs
 
 
-class GlobalOrders(TypedDict):
-    region: str
-    regionalOrders: list[Order]
-
-
 @dataclass
 class Order:
     duration: int
@@ -74,16 +67,29 @@ class Order:
     volume_total: int
 
 
-def create_item_ids(region: str, regional_orders: Regional_orders) -> list[int]:
+@dataclass
+# Will (eventually) contain structures of All_orders_data, Active_order_names, and
+#   All_order_history of a given region
+class RegionOrdersData:
+    # https://developers.eveonline.com/api-explorer#/operations/GetMarketsRegionIdOrders
+    all_orders_data: list[Order]
+
+
+# GlobalOrders points to all order data relevant to a given region:str
+# TODO: think of a better word than Global, as this would be universal, but we're not
+#   getting all the universe's orders.
+GlobalOrders = dict[str, RegionOrdersData]
+
+
+def create_item_ids(region: str, global_orders: GlobalOrders) -> list[int]:
     region_item_ids: set[int] = set()
-    orders: All_orders_data = cast(
-        All_orders_data, regional_orders[region]["allOrdersData"]
-    )
+    orders: list[Order] = global_orders[region].all_orders_data
     for order in orders:
-        if isinstance(order["type_id"], int):
-            region_item_ids.add(order["type_id"])
+        if isinstance(order.type_id, int):
+            region_item_ids.add(order.type_id)
         else:
             raise TypeError(
-                f"`type_id` is expected to be `int`, but was {type(order['type_id'])}"
+                f"`order.type_id` is expected to be `int`, but was "
+                f"{type(order.type_id)}"
             )
     return list(region_item_ids)
