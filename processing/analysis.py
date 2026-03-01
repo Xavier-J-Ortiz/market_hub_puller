@@ -3,21 +3,19 @@ from typing import Any, cast
 
 import processing.csv as df
 import processing.deserialize as ds
+from api.urls import Order
 from config import region_hubs
 from processing.constants import (
     INCLUDE_HISTORY,
-    Active_order_ids,
-    Active_order_names,
-    All_orders_data,
+    GlobalOrders,
     Regional_actionable_data,
     Regional_min_max,
-    Regional_orders,
 )
 
 
 def min_max_source_data(
     region: str,
-    regional_orders: Regional_orders,
+    regional_orders: GlobalOrders,
     regional_min_max: Regional_min_max,
 ) -> None:
     regional_min_max[region] = {}
@@ -25,12 +23,10 @@ def min_max_source_data(
     neg_infinity = float("-inf")
     min_sell_order = {}
     max_buy_order = {}
-    orders: All_orders_data = cast(
-        All_orders_data, regional_orders[region]["allOrdersData"]
-    )
+    orders: list[Order] = regional_orders[region].all_orders_data
     for order in orders:
-        if isinstance(order["type_id"], int):
-            type_id = order["type_id"]
+        if isinstance(order.type_id, int):
+            type_id = order.type_id
         if type_id not in regional_min_max[region]:
             min_sell_order[type_id] = pos_infinity
             max_buy_order[type_id] = neg_infinity
@@ -180,10 +176,10 @@ def remove_bad_orders_names(
 #   Data scrubbing.
 def remove_bad_orders(
     regional_orders: Regional_orders, region: str, region_item_ids: list[int]
-) -> tuple[All_orders_data, Active_order_names, Active_order_ids]:
+) -> tuple[All_orders_data, Active_order_names, list[int]]:
     active_orders_names_cleaned = remove_bad_orders_names(regional_orders, region)
     all_orders_cleaned: All_orders_data = []
-    cleaned_active_orders_ids: Active_order_ids = [
+    cleaned_active_orders_ids: list[int] = [
         cast(int, active_order_name_cleaned["id"])
         for active_order_name_cleaned in active_orders_names_cleaned
     ]

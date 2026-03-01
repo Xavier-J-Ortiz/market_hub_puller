@@ -8,7 +8,6 @@ import processing.cache as c
 from config import region_hubs
 from processing.constants import (
     INCLUDE_HISTORY,
-    Active_order_ids,
     Active_order_names,
     Order_data,
     Order_name,
@@ -109,6 +108,7 @@ def deserialize_order_names(ids: list[int]) -> Active_order_names:
     all_names = []
     item_ids = u.create_name_urls_json_headers(ids)
     all_futures = cl.create_post_futures(item_ids)
+    # https://developers.eveonline.com/api-explorer#/operations/PostUniverseNames
     results = cl.futures_results(all_futures).results
     for result in results:
         names = json.loads(result.text)
@@ -138,7 +138,7 @@ def get_source_data(region: str, regional_orders: Regional_orders) -> None:
     #   region_item_ids looks like:
     #
     #   [31316, 31318, 27065, 31320, 31322, ...]
-    region_item_ids: Active_order_ids = u.create_item_ids(region, regional_orders)
+    region_item_ids: list[int] = u.create_item_ids(region, regional_orders)
 
     # List of dictionaries containing category, id, and name data, used to extract name
     #   data for later processing
