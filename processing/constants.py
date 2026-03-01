@@ -1,8 +1,7 @@
 import os
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
-
-from requests import Response
 
 from config import region_hubs
 
@@ -67,7 +66,8 @@ Regional_min_max = dict[str, dict[int, dict[str, Any]]]
 
 @dataclass
 class HistoryDataPoint:
-    # A single history data point from a list of history data points of a given type_id fetched from https://developers.eveonline.com/api-explorer#/operations/GetMarketsRegionIdHistory
+    # A single history data point from a list of history data points of a given type_id
+    #   fetched from https://developers.eveonline.com/api-explorer#/operations/GetMarketsRegionIdHistory
     average: float
     date: str
     highest: float

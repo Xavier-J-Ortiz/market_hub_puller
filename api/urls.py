@@ -1,6 +1,5 @@
-from dataclasses import dataclass
-
 from api.client import UrlJsonHeader
+from processing.constants import GlobalOrders, Order
 
 ID_SEGMENT_CHUNK: int = 1000
 
@@ -49,36 +48,6 @@ def create_name_urls_json_headers(ids: list[int]) -> list[UrlJsonHeader]:
         ujhs.append(UrlJsonHeader(url=url, ids=id_segment, header=header))
 
     return ujhs
-
-
-@dataclass
-class Order:
-    duration: int
-    is_buy_order: bool
-    issued: str
-    location_id: int
-    min_volume: int
-    order_id: int
-    price: float
-    range: str
-    system_id: int
-    type_id: int
-    volume_remain: int
-    volume_total: int
-
-
-@dataclass
-# Will (eventually) contain structures of All_orders_data, Active_order_names, and
-#   All_order_history of a given region
-class RegionOrdersData:
-    # https://developers.eveonline.com/api-explorer#/operations/GetMarketsRegionIdOrders
-    all_orders_data: list[Order]
-
-
-# GlobalOrders points to all order data relevant to a given region:str
-# TODO: think of a better word than Global, as this would be universal, but we're not
-#   getting all the universe's orders.
-GlobalOrders = dict[str, RegionOrdersData]
 
 
 def create_item_ids(region: str, global_orders: GlobalOrders) -> list[int]:
