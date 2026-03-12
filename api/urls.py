@@ -54,8 +54,8 @@ def create_item_ids(region: str, global_orders: GlobalOrders) -> list[int]:
     region_item_ids: set[int] = set()
     orders: list[Order] = global_orders[region].all_orders_data
     for order in orders:
-        if isinstance(order.type_id, int):
-            region_item_ids.add(order.type_id)
+        if isinstance(order["type_id"], int):
+            region_item_ids.add(order["type_id"])
         else:
             raise TypeError(
                 f"`order.type_id` is expected to be `int`, but was "

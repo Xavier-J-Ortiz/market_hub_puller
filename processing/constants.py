@@ -1,7 +1,7 @@
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, TypedDict
 
 from config import region_hubs
 
@@ -64,7 +64,7 @@ Regional_actionable_data = dict[str, Actionable_data]
 Regional_min_max = dict[str, dict[int, dict[str, Any]]]
 
 
-@dataclass
+@dataclass()
 class HistoryDataPoint:
     # A single history data point from a list of history data points of a given type_id
     #   fetched from https://developers.eveonline.com/api-explorer#/operations/GetMarketsRegionIdHistory
@@ -88,10 +88,10 @@ class NameData:
     # One name data from the list of names fetched from https://developers.eveonline.com/api-explorer#/operations/PostUniverseNames
     category: str
     id: int
+    name: str
 
 
-@dataclass
-class Order:
+class Order(TypedDict):
     # One order from the list of orders fetched from https://developers.eveonline.com/api-explorer#/operations/GetMarketsRegionIdOrders
     duration: int
     is_buy_order: bool
