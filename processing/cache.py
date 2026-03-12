@@ -1,6 +1,6 @@
 import csv
 import gzip
-from typing import Any, cast
+from dataclasses import asdict, fields
 
 import processing.csv as df
 import processing.history as hs
@@ -34,7 +34,7 @@ def find_missing_orders(
     region_item_ids: list[int],
     history_file_path: str,
 ) -> None:
-    active_history = regional_orders[region].all_order_history
+    active_history: list[ItemHistory] = regional_orders[region].all_order_history
     known_region_item_ids: list[int] = [ih.type_id for ih in active_history]
 
     missing_orders = list(set(region_item_ids) - set(known_region_item_ids))
@@ -44,12 +44,12 @@ def find_missing_orders(
             region_hubs[region][0], missing_orders
         )
         active_history.extend(missing_order_histories)
-        fields = ["type_id", "history"]
-        # TODO: Left off Fixing here. Do not move on from here until this is fixed.
+        # fields = ["type_id", "history"]
+        fieldnames = [field.name for field in fields(ItemHistory)]
         with gzip.open(history_file_path, "at") as history_csv:
-            writer = csv.DictWriter(history_csv, fieldnames=fields)
-            for type_id, history in missing_order_histories.items():
-                writer.writerow({"type_id": type_id, "history": history})
+            writer = csv.DictWriter(history_csv, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows([asdict(order) for order in missing_order_histories])
     print(f"{region} history fetch from file has ended")
 
 
@@ -59,6 +59,7 @@ def find_missing_orders(
 item_history = list[dict[int, int | str | None]]
 
 
+# TODO: Left off Fixing here. Do not move on from here until this is fixed.
 def load_history_cache(region: str, history_file_path: str) -> dict[int, str]:
     print(f"{region} history fetch from file has started")
     histories: dict[int, str] = {}

@@ -8,6 +8,7 @@ dependencies = [
     "certifi==2026.1.4",
     "charset-normalizer==3.4.4",
     "idna==3.11",
+    "pydantic>=2.12.5",
     "requests==2.32.5",
     "requests-futures==1.0.2",
     "tomli>=2.4.0",

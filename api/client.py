@@ -29,10 +29,10 @@ class UrlJsonHeader:
     header: dict[str, str]
 
 
-def create_futures(urls: list[str]) -> list[Future]:
-    all_futures: list[Future] = []
+def create_futures(urls: list[str]) -> list[Future[Response]]:
+    all_futures: list[Future[Response]] = []
     for url in urls:
-        future: Future = session.get(url)
+        future: Future[Response] = session.get(url)
         all_futures.append(future)
     return all_futures
 
@@ -72,7 +72,7 @@ def pause_futures(error_timer: int, message: str) -> None:
 #   the raw output from the
 #   requested endpoint used in other functions like deserialize_order_items,
 #   deserialize_history, and deserialize_order_names
-def futures_results(futures: list[Future]) -> FutureResults:
+def futures_results(futures: list[Future[Response]]) -> FutureResults:
     fr = FutureResults(
         results=[],
         redo_urls=[],

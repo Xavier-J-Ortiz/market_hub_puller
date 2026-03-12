@@ -11,9 +11,9 @@ from processing.constants import (
     PROCESS_DATA,
     SAVE_PROCESSED_DATA,
     SAVE_SOURCE_DATA,
+    GlobalOrders,
     Regional_actionable_data,
     Regional_min_max,
-    Regional_orders,
 )
 
 
@@ -41,20 +41,21 @@ def data_to_csv_gz(
             writer.writerows(actionable_data)
 
 
+# TODO: Left off Fixing here. Do not move on from here until this is fixed.
 def create_actionable_data() -> Regional_actionable_data:
-    regional_orders: Regional_orders = {}
+    global_orders: GlobalOrders = {}
     regional_min_max: Regional_min_max = {}
     actionable_data: Regional_actionable_data = {}
     for region in region_hubs:
         # Gets all source data, mainly active orders, names, and history
-        ds.get_source_data(region, regional_orders)
+        ds.get_source_data(region, global_orders)
         # Creates a set of data that captures the min sell/max buy order of a region
-        an.min_max_source_data(region, regional_orders, regional_min_max)
+        an.min_max_source_data(region, global_orders, regional_min_max)
         # Uses result of `min_max_source_data` and processes it for comparison on a per
         #   item basis
         if PROCESS_DATA:
             an.process_filtered_data(
-                region, regional_min_max, actionable_data, regional_orders
+                region, regional_min_max, actionable_data, global_orders
             )
     # Uncomment to see examples of actionable data:
     #
@@ -94,7 +95,7 @@ def create_actionable_data() -> Regional_actionable_data:
             data_to_csv_gz(actionable_data[region], fields, filename, path)
         if SAVE_SOURCE_DATA:
             path = "./market_data/source_data"
-            for data_type, data in regional_orders[region].items():
+            for data_type, data in global_orders[region].items():
                 filename = f"{region}_{data_type}_source.csv.gz"
                 if data_type != "activeOrderHistory" and isinstance(data, list):
                     fields = list(data[0].keys())
