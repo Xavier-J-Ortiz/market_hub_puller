@@ -22,7 +22,7 @@ from processing.constants import (
 )
 
 
-def _to_dict(obj):
+def _to_dict(obj: object) -> object:
     if isinstance(obj, MappingProxyType):
         return dict(obj)
     elif hasattr(obj, "__dataclass_fields__"):

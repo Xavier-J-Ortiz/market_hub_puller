@@ -27,7 +27,7 @@ def is_saved_market_history_data_stale() -> dict[str, bool]:
     are_markets_stale = {}
     for region_name in region_hubs:
         file_path = (
-            f"./market_data/source_data/{region_name}all_order_history_source.csv.gz"
+            f"./market_data/source_data/{region_name}_all_order_history_source.csv.gz"
         )
         if os.path.exists(file_path) and os.path.getctime(file_path) > LAST_DOWNTIME:
             are_markets_stale[region_name] = False
