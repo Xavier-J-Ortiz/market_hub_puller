@@ -137,8 +137,6 @@ def add_history_to_processed_data(
 ) -> None:
     if (
         df.ARE_SAVED_MARKETS_STALE[region]
-        # TODO: Left off Fixing here. Do not move on from here until this is fixed.
-        # TODO: this identifier below needs to be different
         or type_id in global_orders[region].all_order_history
     ):
         item_history = next(
