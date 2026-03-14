@@ -5,7 +5,7 @@ from requests import Response
 
 import api.client as cl
 import api.urls as u
-from processing.constants import ItemHistory
+from processing.constants import HistoryDataPoint, ItemHistory
 
 
 def deserialize_history_chunk(
@@ -55,8 +55,22 @@ def parse_history_results(
 ) -> None:
     for result in results:
         result_item_id = int(result.url.split("=")[-1])
-        item_history = json.loads(result.text)
+        # item_history_array = iha
+        iha = json.loads(result.text)
         # TODO: Investigate if there is a better way to do this
         for ih in histories:
             if ih.type_id == result_item_id:
+                # item_history_point_dict = ihpd
+                item_history = []
+                for ihpd in iha:
+                    # item_history_point = ihp
+                    ihp = HistoryDataPoint(
+                        average=ihpd["average"],
+                        date=ihpd["date"],
+                        highest=ihpd["highest"],
+                        lowest=ihpd["lowest"],
+                        order_count=ihpd["order_count"],
+                        volume=ihpd["volume"],
+                    )
+                    item_history.append(ihp)
                 ih.history = item_history

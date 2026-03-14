@@ -110,7 +110,13 @@ def deserialize_order_names(ids: list[int]) -> list[NameData]:
     results = cl.futures_results(all_futures).results
     for result in results:
         names = json.loads(result.text)
-        all_names += names
+        for name in names:
+            new_name = NameData(
+                category=name["category"],
+                id=name["id"],
+                name=name["name"],
+            )
+            all_names.append(new_name)
     return all_names
 
 
