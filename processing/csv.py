@@ -1,7 +1,9 @@
 import csv
 import gzip
 import os
+from dataclasses import is_dataclass
 from dataclasses import fields as dataclass_fields
+from types import MappingProxyType
 
 import processing.analysis as an
 import processing.deserialize as ds
@@ -15,14 +17,29 @@ from processing.constants import (
     GlobalOrders,
     ItemHistory,
     NameData,
-    Order,
     Regional_actionable_data,
     Regional_min_max,
 )
 
 
+def _to_dict(obj):
+    if isinstance(obj, MappingProxyType):
+        return dict(obj)
+    elif hasattr(obj, "__dataclass_fields__"):
+        return {f: _to_dict(getattr(obj, f)) for f in obj.__dataclass_fields__}
+    elif hasattr(obj, "__dict__"):
+        return {
+            k: _to_dict(v) for k, v in obj.__dict__.items() if not k.startswith("_")
+        }
+    elif isinstance(obj, dict):
+        return {k: _to_dict(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return type(obj)(_to_dict(i) for i in obj)
+    return obj
+
+
 def data_to_csv_gz(
-    actionable_data: dict | list,
+    actionable_data: list,
     fields: list[str],
     filename: str,
     path: str,
@@ -42,6 +59,8 @@ def data_to_csv_gz(
                 for item in actionable_data.values():
                     writer.writerow(item)
         elif isinstance(actionable_data, list):
+            if actionable_data and is_dataclass(actionable_data[0]):
+                actionable_data = [_to_dict(item) for item in actionable_data]
             writer.writerows(actionable_data)
 
 
@@ -100,30 +119,19 @@ def create_actionable_data() -> Regional_actionable_data:
             path = "./market_data/source_data"
             filename = f"{region}_all_orders_data_source.csv.gz"
             data = global_orders[region].all_orders_data
-            fields = [f.name for f in dataclass_fields(Order)]
+            fields = list(data[0].keys())
+            # fields = [f.name for f in dataclass_fields(Order)]
             data_to_csv_gz(data, fields, filename, path)
 
             filename = f"{region}_active_order_names_source.csv.gz"
             data = global_orders[region].active_order_names
             fields = [f.name for f in dataclass_fields(NameData)]
             data_to_csv_gz(data, fields, filename, path)
-            # TODO: Left off Fixing here. Do not move on from here until this is fixed.
-            # TODO: Determine if the all_order_history is present, if so then create
-            #   file, otherwise, skip. May need to redo the logic as it searches for a
-            #   dict` data as a validator since previously the all_orders_data and the
-            #   active_order_names were lists. So searching for a `dict` was a good
-            #   validator.
-            # for data_type, data in global_orders[region].items():
-            # filename = f"{region}_{data_type}_source.csv.gz"
-            # if data_type != "activeOrderHistory" and isinstance(data, list):
-            # fields = list(data[0].keys())
-            # data_to_csv_gz(data, fields, filename, path)
-            # elif (
-            #     data_type == "activeOrderHistory"
-            #     and ARE_SAVED_MARKETS_STALE[region]
-            #     and isinstance(data, dict)
-            # ):
-            if ARE_SAVED_MARKETS_STALE[region] and isinstance(data[0], ItemHistory):
+
+            if (
+                ARE_SAVED_MARKETS_STALE[region]
+                and global_orders[region].all_order_history
+            ):
                 filename = f"{region}all_order_history_source.csv.gz"
                 data = global_orders[region].all_order_history
                 fields = [f.name for f in dataclass_fields(ItemHistory)]

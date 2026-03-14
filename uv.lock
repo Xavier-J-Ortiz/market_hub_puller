@@ -46,6 +46,15 @@ wheels = [
 ]
 
 [[package]]
+name = "dataclass-csv"
+version = "1.4.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/be/c8/403e0b48708fc9dd9e87944ea61c5b8a2cd947bdb63c558274de453e7787/dataclass_csv-1.4.1.tar.gz", hash = "sha256:ec1df2893289bc58fa8d40a752bbfce4576f2289f6c06b8c944f802321dfba5a", size = 25412, upload-time = "2026-02-01T12:10:53.836Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b1/e8/19ad7521fcb1c38888bffa8cd63657758ae14a386c611438e193463a58c0/dataclass_csv-1.4.1-py3-none-any.whl", hash = "sha256:1e3dfc8dedb479e71116609432af06751349bf61512b03b1e7b61e38b1830a24", size = 13415, upload-time = "2026-02-01T12:10:52.473Z" },
+]
+
+[[package]]
 name = "idna"
 version = "3.11"
 source = { registry = "https://pypi.org/simple" }
@@ -61,6 +70,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "certifi" },
     { name = "charset-normalizer" },
+    { name = "dataclass-csv" },
     { name = "idna" },
     { name = "pydantic" },
     { name = "requests" },
@@ -73,6 +83,7 @@ dependencies = [
 requires-dist = [
     { name = "certifi", specifier = "==2026.1.4" },
     { name = "charset-normalizer", specifier = "==3.4.4" },
+    { name = "dataclass-csv", specifier = ">=1.4.1" },
     { name = "idna", specifier = "==3.11" },
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "requests", specifier = "==2.32.5" },

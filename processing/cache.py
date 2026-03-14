@@ -2,6 +2,8 @@ import csv
 import gzip
 from dataclasses import asdict, fields
 
+from dataclass_csv import DataclassReader
+
 import processing.csv as df
 import processing.history as hs
 from config import region_hubs
@@ -9,39 +11,40 @@ from processing.constants import GlobalOrders, ItemHistory
 
 
 def get_source_history_data(
-    region: str, regional_orders: GlobalOrders, region_item_ids: list[int]
+    region: str, global_orders: GlobalOrders, region_item_ids: list[int]
 ) -> None:
     if df.ARE_SAVED_MARKETS_STALE[region]:
         print(f"{region} history pulling has started")
         # Dictionary: {item_id: [{history_day_1}, {history_day_2}], ...}
-        regional_orders[region].all_order_history = hs.deserialize_history(
+        global_orders[region].all_order_history = hs.deserialize_history(
             region_hubs[region][0], region_item_ids
         )
         print(f"{region} history pulling has ended")
     else:
         history_file_path = (
-            f"./market_data/source_data/{region}_activeOrderHistory_source.csv.gz"
+            f"./market_data/source_data/{region}_all_order_history_source.csv.gz"
         )
-        regional_orders[region]["activeOrderHistory"]: dict[int, str] = (
-            load_history_cache(region, history_file_path)
+        global_orders[region].all_order_history: list[ItemHistory] = load_history_cache(
+            region, history_file_path
         )
-        find_missing_orders(region, regional_orders, region_item_ids, history_file_path)
+        find_missing_orders(region, global_orders, region_item_ids, history_file_path)
 
 
 def find_missing_orders(
     region: str,
-    regional_orders: GlobalOrders,
+    global_orders: GlobalOrders,
     region_item_ids: list[int],
     history_file_path: str,
 ) -> None:
-    active_history: list[ItemHistory] = regional_orders[region].all_order_history
+    active_history: list[ItemHistory] = global_orders[region].all_order_history
     known_region_item_ids: list[int] = [ih.type_id for ih in active_history]
 
     missing_orders = list(set(region_item_ids) - set(known_region_item_ids))
     if len(missing_orders) != 0:
         print(f"Fetching missing orders from stale {region} cache.\n{missing_orders}")
         missing_order_histories: list[ItemHistory] = hs.deserialize_history(
-            region_hubs[region][0], missing_orders
+            region_hubs[region][0],
+            missing_orders,
         )
         active_history.extend(missing_order_histories)
         # fields = ["type_id", "history"]
@@ -59,17 +62,17 @@ def find_missing_orders(
 item_history = list[dict[int, int | str | None]]
 
 
-# TODO: Left off Fixing here. Do not move on from here until this is fixed.
-def load_history_cache(region: str, history_file_path: str) -> dict[int, str]:
+def load_history_cache(region: str, history_file_path: str) -> list[ItemHistory]:
     print(f"{region} history fetch from file has started")
-    histories: dict[int, str] = {}
+    rih: list[ItemHistory] = []
+    # field_names = [f.name for f in ItemHistory]
     with gzip.open(history_file_path, "rt") as history_csv:
-        reader = csv.DictReader(history_csv)
-        for row in reader:
-            if type(row["history"]) is not str:
-                raise TypeError(
-                    f"Expected loaded CSV row to be of `str`, Got: "
-                    f"{type(row['history'])}"
-                )
-            histories[int(row["type_id"])] = row["history"]
-    return histories
+        rih += list(DataclassReader(history_csv, ItemHistory))
+        # for row in reader:
+        #     if type(row["history"]) is not str:
+        #         raise TypeError(
+        #             f"Expected loaded CSV row to be of `str`, Got: "
+        #             f"{type(row['history'])}"
+        #         )
+        #     rih[int(row["type_id"])] = row["history"]
+    return rih
