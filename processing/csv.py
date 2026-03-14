@@ -1,8 +1,8 @@
 import csv
 import gzip
 import os
-from dataclasses import is_dataclass
 from dataclasses import fields as dataclass_fields
+from dataclasses import is_dataclass
 from types import MappingProxyType
 
 import processing.analysis as an
@@ -57,7 +57,7 @@ def data_to_csv_gz(
                     writer.writerow({"type_id": type_id, "history": history})
             else:
                 for item in actionable_data.values():
-                    writer.writerow(item)
+                    writer.writerow(_to_dict(item))
         elif isinstance(actionable_data, list):
             if actionable_data and is_dataclass(actionable_data[0]):
                 actionable_data = [_to_dict(item) for item in actionable_data]
@@ -132,7 +132,7 @@ def create_actionable_data() -> Regional_actionable_data:
                 ARE_SAVED_MARKETS_STALE[region]
                 and global_orders[region].all_order_history
             ):
-                filename = f"{region}all_order_history_source.csv.gz"
+                filename = f"{region}_all_order_history_source.csv.gz"
                 data = global_orders[region].all_order_history
                 fields = [f.name for f in dataclass_fields(ItemHistory)]
                 data_to_csv_gz(data, fields, filename, path)

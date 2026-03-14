@@ -141,11 +141,15 @@ def add_history_to_processed_data(
         # TODO: this identifier below needs to be different
         or type_id in global_orders[region].all_order_history
     ):
-        actionable_data[region][name]["history"] = [
-            history
-            for history in global_orders[region].all_order_history
-            if history.type_id == type_id
-        ]
+        item_history = next(
+            (
+                history.history
+                for history in global_orders[region].all_order_history
+                if history.type_id == type_id
+            ),
+            [],
+        )
+        actionable_data[region][name]["history"] = item_history
     else:
         # TODO: Maybe change this empty list with a nil, or something else? The type is
         #   of ItemHistory. You could extend this type to have the name of the item also
