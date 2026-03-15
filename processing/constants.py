@@ -45,22 +45,9 @@ PROCESS_DATA = True  # Does comparison calculation filters
 SAVE_PROCESSED_DATA = True  # Save processed data
 SAVE_SOURCE_DATA = True
 
-# TODO: All these types below are globbed together. In next pass, maybe useful to start
-#   to Dataclass it up.
+# TODO: Determine if these make sense to move to dataclasses or datatypes
 Actionable_data = dict[str, dict[str, Any]]
 Regional_actionable_data = dict[str, Actionable_data]
-# Active_order_ids = list[int]
-# Order_name = dict[str, str | int]
-# Active_order_names = list[Order_name]
-# Order_data = dict[str, int | bool | str | float]
-# All_orders_data = list[Order_data]
-# All_order_history = dict[int, str | float | int]
-# Regional_orders = dict[
-#     # str, dict[str, All_orders_data | Active_order_names | All_order_history]
-#     # str, dict[str, Active_order_names | All_order_history]
-#     str, dict[str, All_order_history]
-# ]
-
 Regional_min_max = dict[str, dict[int, dict[str, Any]]]
 
 
@@ -108,8 +95,6 @@ class Order(TypedDict):
 
 
 @dataclass
-# Will (eventually) contain structures of All_orders_data, Active_order_names, and
-#   All_order_history of a given region
 class RegionOrdersData:
     # https://developers.eveonline.com/api-explorer#/operations/GetMarketsRegionIdOrders
     all_orders_data: list[Order]
@@ -118,6 +103,4 @@ class RegionOrdersData:
 
 
 # GlobalOrders points to all order data relevant to a given region:str
-# TODO: think of a better word than Global, as this would be universal, but we're not
-#   getting all the universe's orders.
 GlobalOrders = dict[str, RegionOrdersData]
