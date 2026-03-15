@@ -10,7 +10,7 @@ region_hubs = config.region_hubs
 
 def main() -> None:
     try:
-        df.create_actionable_data()
+        _ = df.create_actionable_data()
         print("Actionable Data Created Successfully")
         sys.exit(0)
     except Exception as e:

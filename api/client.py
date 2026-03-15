@@ -117,7 +117,9 @@ def futures_results(futures: list[Future[Response]]) -> FutureResults:
             if ("Type not found!" not in result.text) and (
                 "Type not tradable on market!" not in result.text
             ):
-                redo_url: str = result.url
+                # Empty quotes after the or to satisfy type checker, but should never be
+                #   this case.
+                redo_url: str = result.url or ""
                 fr.redo_urls.append(redo_url)
             else:
                 print(f"Not added to redo_urls due to {result.text} output\n")
