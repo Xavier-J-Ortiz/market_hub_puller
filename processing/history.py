@@ -11,6 +11,7 @@ from processing.constants import HistoryDataPoint, ItemHistory
 def deserialize_history_chunk(
     history_urls: list[list[str]], histories: list[ItemHistory]
 ) -> tuple[list[ItemHistory], list[str]]:
+    fr = None
     for history_chunk in history_urls:
         fr = cl.futures_results(cl.create_history_futures(history_chunk))
         parse_history_results(fr.results, histories)
@@ -26,7 +27,7 @@ def deserialize_history_chunk(
                 f"Sleep history fetch due to error timer being {fr.error_timer} "
                 "seconds",
             )
-    return histories, fr.redo_urls
+    return histories, fr.redo_urls if fr else []
 
 
 # Deserializes resulting JSON specifically from history futures, used in
@@ -54,9 +55,17 @@ def parse_history_results(
     results: list[Response], histories: list[ItemHistory]
 ) -> None:
     for result in results:
+        if not result.url:
+            continue
         result_item_id = int(result.url.split("=")[-1])
-        # item_history_array = iha
-        iha = json.loads(result.text)
+        if not result.text:
+            continue
+        try:
+            iha = json.loads(result.text)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(iha, list):
+            continue
         # TODO: Investigate if there is a better way to do this
         for ih in histories:
             if ih.type_id == result_item_id:
