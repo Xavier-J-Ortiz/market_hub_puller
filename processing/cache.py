@@ -57,22 +57,12 @@ def find_missing_orders(
 
 
 # Historical Market Statistics: https://developers.eveonline.com/api-explorer#/operations/GetMarketsRegionIdHistory
-#   Move this to location where the history array is loaded with json.loads and turned
-#   into a python object.
 item_history = list[dict[int, int | str | None]]
 
 
 def load_history_cache(region: str, history_file_path: str) -> list[ItemHistory]:
     print(f"{region} history fetch from file has started")
     rih: list[ItemHistory] = []
-    # field_names = [f.name for f in ItemHistory]
     with gzip.open(history_file_path, "rt") as history_csv:
         rih += list(DataclassReader(history_csv, ItemHistory))
-        # for row in reader:
-        #     if type(row["history"]) is not str:
-        #         raise TypeError(
-        #             f"Expected loaded CSV row to be of `str`, Got: "
-        #             f"{type(row['history'])}"
-        #         )
-        #     rih[int(row["type_id"])] = row["history"]
     return rih
