@@ -3,7 +3,7 @@ import gzip
 import os
 from dataclasses import fields as dataclass_fields
 from dataclasses import is_dataclass
-from types import MappingProxyType
+from typing import Any, cast
 
 import processing.analysis as an
 import processing.deserialize as ds
@@ -23,23 +23,17 @@ from processing.constants import (
 
 
 def _to_dict(obj: object) -> object:
-    if isinstance(obj, MappingProxyType):
-        return dict(obj)
-    elif hasattr(obj, "__dataclass_fields__"):
-        return {f: _to_dict(getattr(obj, f)) for f in obj.__dataclass_fields__}
-    elif hasattr(obj, "__dict__"):
-        return {
-            k: _to_dict(v) for k, v in obj.__dict__.items() if not k.startswith("_")
-        }
-    elif isinstance(obj, dict):
-        return {k: _to_dict(v) for k, v in obj.items()}
+    if hasattr(obj, "items"):
+        return {k: _to_dict(v) for k, v in obj.items()}  # type: ignore[union-attr]
+    elif is_dataclass(obj):
+        return {f.name: _to_dict(getattr(obj, f.name)) for f in dataclass_fields(obj)}
     elif isinstance(obj, (list, tuple)):
         return type(obj)(_to_dict(i) for i in obj)
     return obj
 
 
 def data_to_csv_gz(
-    actionable_data: list,
+    actionable_data: list[Any] | dict[str, dict[str, Any]],
     fields: list[str],
     filename: str,
     path: str,
@@ -57,7 +51,7 @@ def data_to_csv_gz(
                     writer.writerow({"type_id": type_id, "history": history})
             else:
                 for item in actionable_data.values():
-                    writer.writerow(_to_dict(item))
+                    writer.writerow(cast(dict[str, Any], _to_dict(item)))
         elif isinstance(actionable_data, list):
             if actionable_data and is_dataclass(actionable_data[0]):
                 actionable_data = [_to_dict(item) for item in actionable_data]
@@ -79,12 +73,6 @@ def create_actionable_data() -> Regional_actionable_data:
             an.process_filtered_data(
                 region, regional_min_max, actionable_data, global_orders
             )
-    # Uncomment to see examples of actionable data:
-    #
-    # print(actionable_data["Jita"]["Stratios"])
-    # print(actionable_data["Dodixie"]["Stratios"])
-    #
-    # TODO: Provide an example of expanded actionable_data[region][item_name]
     for region in region_hubs:
         if PROCESS_DATA and SAVE_PROCESSED_DATA:
             path = "./market_data/processed_data"
@@ -120,7 +108,6 @@ def create_actionable_data() -> Regional_actionable_data:
             filename = f"{region}_all_orders_data_source.csv.gz"
             data = global_orders[region].all_orders_data
             fields = list(data[0].keys())
-            # fields = [f.name for f in dataclass_fields(Order)]
             data_to_csv_gz(data, fields, filename, path)
 
             filename = f"{region}_active_order_names_source.csv.gz"

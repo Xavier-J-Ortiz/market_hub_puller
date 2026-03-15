@@ -1,5 +1,6 @@
 import csv
 import gzip
+import os
 from dataclasses import asdict, fields
 
 from dataclass_csv import DataclassReader
@@ -49,9 +50,13 @@ def find_missing_orders(
         active_history.extend(missing_order_histories)
         # fields = ["type_id", "history"]
         fieldnames = [field.name for field in fields(ItemHistory)]
+        file_has_data = (
+            os.path.exists(history_file_path) and os.path.getsize(history_file_path) > 0
+        )
         with gzip.open(history_file_path, "at") as history_csv:
             writer = csv.DictWriter(history_csv, fieldnames=fieldnames)
-            writer.writeheader()
+            if not file_has_data:
+                writer.writeheader()
             writer.writerows([asdict(order) for order in missing_order_histories])
     print(f"{region} history fetch from file has ended")
 
