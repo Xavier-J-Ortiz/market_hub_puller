@@ -7,6 +7,8 @@ from api.urls import Order
 from config import region_hubs
 from processing.constants import (
     INCLUDE_HISTORY,
+    LOWEST_MARGIN,
+    MIN_VALUE_OF_ITEM_OF_INTEREST,
     GlobalOrders,
     NameData,
     Regional_actionable_data,
@@ -97,10 +99,10 @@ def process_filtered_data(
             jsv_sell_margin = 1 - (jsv / hsv)
             jbv_sell_margin = 1 - (jbv / hsv)
             filter_values = {
-                "jsv_margin": 0.17,
-                "jsv_min": 70000000,
-                "jbv_margin": 0.17,
-                "jbv_min": 70000000,
+                "jsv_margin": LOWEST_MARGIN,
+                "jsv_min": MIN_VALUE_OF_ITEM_OF_INTEREST,
+                "jbv_margin": LOWEST_MARGIN,
+                "jbv_min": MIN_VALUE_OF_ITEM_OF_INTEREST,
             }
             final_filter = (
                 jsv > filter_values["jsv_min"]

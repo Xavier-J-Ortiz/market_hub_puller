@@ -26,13 +26,16 @@ def find_last_downtime() -> float:
 
 LAST_DOWNTIME = find_last_downtime()
 ID_SEGMENT_CHUNK: int = 1000
+MIN_VALUE_OF_ITEM_OF_INTEREST = 70000000
+LOWEST_MARGIN = 0.2
+DATA_DIR = "./market_data"
 
 
 def is_saved_market_history_data_stale() -> dict[str, bool]:
     are_markets_stale = {}
     for region_name in region_hubs:
         file_path = (
-            f"./market_data/source_data/{region_name}_all_order_history_source.csv.gz"
+            f"{DATA_DIR}/source_data/{region_name}_all_order_history_source.csv.gz"
         )
         if os.path.exists(file_path) and os.path.getctime(file_path) > LAST_DOWNTIME:
             are_markets_stale[region_name] = False

@@ -8,7 +8,7 @@ from dataclass_csv import DataclassReader
 import processing.csv as df
 import processing.history as hs
 from config import region_hubs
-from processing.constants import GlobalOrders, ItemHistory
+from processing.constants import DATA_DIR, GlobalOrders, ItemHistory
 
 
 def get_source_history_data(
@@ -23,7 +23,7 @@ def get_source_history_data(
         print(f"{region} history pulling has ended")
     else:
         history_file_path = (
-            f"./market_data/source_data/{region}_all_order_history_source.csv.gz"
+            f"{DATA_DIR}/source_data/{region}_all_order_history_source.csv.gz"
         )
         global_orders[region].all_order_history: list[ItemHistory] = load_history_cache(
             region, history_file_path
