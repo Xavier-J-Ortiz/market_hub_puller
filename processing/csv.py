@@ -46,6 +46,9 @@ def data_to_csv_gz(
         writer = csv.DictWriter(g, fieldnames=fields)
         writer.writeheader()
         if isinstance(actionable_data, dict):
+            if not actionable_data:
+                # Will only run if a region has no data.
+                return
             if isinstance(list(actionable_data.keys())[0], int):
                 for type_id, history in actionable_data:
                     writer.writerow({"type_id": type_id, "history": history})

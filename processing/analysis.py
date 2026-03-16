@@ -26,8 +26,7 @@ def min_max_source_data(
     max_buy_order = {}
     orders: list[Order] = global_orders[region].all_orders_data
     for order in orders:
-        if isinstance(order["type_id"], int):
-            type_id = order["type_id"]
+        type_id = order["type_id"]
         if type_id not in regional_min_max[region]:
             min_sell_order[type_id] = pos_infinity
             max_buy_order[type_id] = neg_infinity

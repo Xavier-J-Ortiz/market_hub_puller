@@ -93,9 +93,9 @@ def deserialize_order_items(
     redo_urls: list[str],
     func: Callable[[str, int], str],
 ) -> tuple[list[Order], list[str]]:
+    deserialized_results: list[Order] = []
     if len(redo_urls) == 0:
         deserialized_results, total_pages = deserialize_order_item_p1(region, func)
-    if len(redo_urls) == 0:
         deserialized_results, redo_urls = deserialize_order_items_p2_onwards(
             region,
             total_pages,
