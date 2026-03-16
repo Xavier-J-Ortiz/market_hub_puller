@@ -10,6 +10,7 @@ import processing.deserialize as ds
 from config import region_hubs
 from processing.constants import (
     ARE_SAVED_MARKETS_STALE,
+    DATA_DIR,
     INCLUDE_HISTORY,
     PROCESS_DATA,
     SAVE_PROCESSED_DATA,
@@ -78,7 +79,7 @@ def create_actionable_data() -> Regional_actionable_data:
             )
     for region in region_hubs:
         if PROCESS_DATA and SAVE_PROCESSED_DATA:
-            path = "./market_data/processed_data"
+            path = f"{DATA_DIR}/processed_data"
             if INCLUDE_HISTORY:
                 fields = [
                     "name",
@@ -107,7 +108,7 @@ def create_actionable_data() -> Regional_actionable_data:
             filename = f"{region}_processed.csv.gz"
             data_to_csv_gz(actionable_data[region], fields, filename, path)
         if SAVE_SOURCE_DATA:
-            path = "./market_data/source_data"
+            path = f"{DATA_DIR}/source_data"
             filename = f"{region}_all_orders_data_source.csv.gz"
             data = global_orders[region].all_orders_data
             fields = list(data[0].keys())
