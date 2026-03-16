@@ -1,5 +1,6 @@
 import csv
 import gzip
+import logging
 import os
 from dataclasses import asdict, fields
 
@@ -15,12 +16,12 @@ def get_source_history_data(
     region: str, global_orders: GlobalOrders, region_item_ids: list[int]
 ) -> None:
     if df.ARE_SAVED_MARKETS_STALE[region]:
-        print(f"{region} history pulling has started")
+        logging.info(f"{region} history pulling has started")
         # Dictionary: {item_id: [{history_day_1}, {history_day_2}], ...}
         global_orders[region].all_order_history = hs.deserialize_history(
             region_hubs[region][0], region_item_ids
         )
-        print(f"{region} history pulling has ended")
+        logging.info(f"{region} history pulling has ended")
     else:
         history_file_path = (
             f"{DATA_DIR}/source_data/{region}_all_order_history_source.csv.gz"
@@ -42,7 +43,9 @@ def find_missing_orders(
 
     missing_orders = list(set(region_item_ids) - set(known_region_item_ids))
     if len(missing_orders) != 0:
-        print(f"Fetching missing orders from stale {region} cache.\n{missing_orders}")
+        logging.debug(
+            f"Fetching missing orders from stale {region} cache.\n{missing_orders}"
+        )
         missing_order_histories: list[ItemHistory] = hs.deserialize_history(
             region_hubs[region][0],
             missing_orders,
@@ -58,7 +61,7 @@ def find_missing_orders(
             if not file_has_data:
                 writer.writeheader()
             writer.writerows([asdict(order) for order in missing_order_histories])
-    print(f"{region} history fetch from file has ended")
+    logging.info(f"{region} history fetch from file has ended")
 
 
 # Historical Market Statistics: https://developers.eveonline.com/api-explorer#/operations/GetMarketsRegionIdHistory
@@ -66,7 +69,7 @@ item_history = list[dict[int, int | str | None]]
 
 
 def load_history_cache(region: str, history_file_path: str) -> list[ItemHistory]:
-    print(f"{region} history fetch from file has started")
+    logging.info(f"{region} history fetch from file has started")
     rih: list[ItemHistory] = []
     with gzip.open(history_file_path, "rt") as history_csv:
         rih += list(DataclassReader(history_csv, ItemHistory))

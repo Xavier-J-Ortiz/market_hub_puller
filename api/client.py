@@ -1,3 +1,4 @@
+import logging
 from concurrent.futures import Future, as_completed
 from dataclasses import dataclass
 from time import sleep
@@ -62,7 +63,7 @@ def create_post_futures(urls_json_headers: list[UrlJsonHeader]) -> list[Future]:
 
 def pause_futures(error_timer: int, message: str) -> None:
     if error_timer != 0:
-        print(message)
+        logging.warning(message)
         sleep(error_timer + 1)
 
 
@@ -86,13 +87,13 @@ def futures_results(futures: list[Future[Response]]) -> FutureResults:
                     error_limit_time_to_reset: str = result.headers[
                         "x-esi-error-limit-reset"
                     ]
-                    print(
+                    logging.info(
                         f"INFORMATIONAL: Though no error, for {result.url} "
                         f"the Error Limit Remaining: {error_limit_remaining} "
                         f"Limit-Rest {error_limit_time_to_reset} \n\n"
                     )
         except HTTPError:
-            print(
+            logging.debug(
                 f"Received status code {result.status_code} from {result.url} With "
                 f"headers:\n{str(result.headers)}, and result.text {result.text} of "
                 f"type {type(result.text)}\n"
@@ -102,11 +103,10 @@ def futures_results(futures: list[Future[Response]]) -> FutureResults:
                 error_limit_time_to_reset: str = result.headers[
                     "x-esi-error-limit-reset"
                 ]
-                print(
+                logging.debug(
                     f"Error Limit Remaining: {error_limit_remaining} Limit-Rest "
-                    f"{error_limit_time_to_reset} \n"
+                    f"{error_limit_time_to_reset} \n\n"
                 )
-                print("\n")
                 if (
                     int(error_limit_remaining) < ERR_MIN_THRESHOLD
                     and int(error_limit_time_to_reset) >= 1
@@ -120,10 +120,10 @@ def futures_results(futures: list[Future[Response]]) -> FutureResults:
                 redo_url: str = result.url or ""
                 fr.redo_urls.append(redo_url)
             else:
-                print(f"Not added to redo_urls due to {result.text} output\n")
+                logging.info(f"Not added to redo_urls due to {result.text} output\n")
             continue
         except RequestException as e:
-            print(f"other error is {e} from {result.url}")
+            logging.debug(f"other error is {e} from {result.url}")
             continue
         fr.results.append(result)
     return fr
