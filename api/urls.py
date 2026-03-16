@@ -1,7 +1,5 @@
 from api.client import UrlJsonHeader
-from processing.constants import GlobalOrders, Order
-
-ID_SEGMENT_CHUNK: int = 1000
+from processing.constants import ID_SEGMENT_CHUNK, GlobalOrders, Order
 
 
 def create_all_order_url(region: str, page_number: int) -> str:

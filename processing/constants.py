@@ -6,6 +6,10 @@ from typing import Any, TypedDict
 from config import region_hubs
 
 INCLUDE_HISTORY = True
+CHUNK_LENGTH = 30000
+# set true to see informational error information for troubleshooting only.
+PRINT_INFORMATIONAL_ERR_LIMITS = False
+ERR_MIN_THRESHOLD = 10
 
 
 def find_last_downtime() -> float:
@@ -21,6 +25,7 @@ def find_last_downtime() -> float:
 
 
 LAST_DOWNTIME = find_last_downtime()
+ID_SEGMENT_CHUNK: int = 1000
 
 
 def is_saved_market_history_data_stale() -> dict[str, bool]:
