@@ -5,7 +5,7 @@ from requests import Response
 
 import api.client as cl
 import api.urls as u
-from processing.constants import HistoryDataPoint, ItemHistory
+from processing.constants import CHUNK_LENGTH, HistoryDataPoint, ItemHistory
 
 
 def deserialize_history_chunk(
@@ -37,7 +37,7 @@ def deserialize_history(region: str, item_ids: list[int]) -> list[ItemHistory]:
     # old {1234: <list of history data points>}
     # histories = {}
     histories: list[ItemHistory] = []
-    chunk_length = 30000
+    chunk_length = CHUNK_LENGTH
     for idx, item_id in enumerate(item_ids):
         history_url = u.create_item_history_url(region, item_id)
         if idx % chunk_length == 0:

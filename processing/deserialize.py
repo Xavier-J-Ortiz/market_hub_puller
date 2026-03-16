@@ -7,6 +7,7 @@ import processing.analysis as an
 import processing.cache as c
 from config import region_hubs
 from processing.constants import (
+    CHUNK_LENGTH,
     INCLUDE_HISTORY,
     GlobalOrders,
     NameData,
@@ -56,7 +57,7 @@ def deserialize_order_items_p2_onwards(
     func: Callable[[str, int], str],
 ) -> tuple[list[Order], list[str]]:
     urls = []
-    chunk_length = 30000
+    chunk_length = CHUNK_LENGTH
     for page in range(2, total_pages + 1):
         url = func(region, page)
         if (page - 2) % chunk_length == 0:

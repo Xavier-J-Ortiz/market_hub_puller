@@ -6,13 +6,11 @@ from requests import HTTPError, RequestException, Response
 from requests_futures.sessions import FuturesSession
 
 from config import user_agent
+from processing.constants import ERR_MIN_THRESHOLD, PRINT_INFORMATIONAL_ERR_LIMITS
 
-session = FuturesSession(max_workers=160)
+MAX_WORKERS = 160
+session = FuturesSession(max_workers=MAX_WORKERS)
 session.headers.update(user_agent)
-
-# set true to see informational error information for troubleshooting only.
-PRINT_INFORMATIONAL_ERR_LIMITS = False
-ERR_MIN_THRESHOLD = 10
 
 
 @dataclass
@@ -40,7 +38,7 @@ def create_futures(urls: list[str]) -> list[Future[Response]]:
 def create_history_futures(urls: list[str]) -> list[Future]:
     # Gets future of https://developers.eveonline.com/api-explorer#/operations/GetMarketsRegionIdHistory
     all_futures: list[Future] = []
-    history_session = FuturesSession(max_workers=160)
+    history_session = FuturesSession(max_workers=MAX_WORKERS)
     history_session.headers.update(user_agent)
     for url in urls:
         future: Future = history_session.get(url)

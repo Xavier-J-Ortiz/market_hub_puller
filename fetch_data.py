@@ -2,10 +2,10 @@
 import sys
 import traceback
 
-import config
 import processing.csv as df
+from config import region_hubs
 
-region_hubs = config.region_hubs
+region_hubs
 
 
 def main() -> None:
