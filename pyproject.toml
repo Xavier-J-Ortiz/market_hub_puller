@@ -10,11 +10,16 @@ dependencies = [
     "dataclass-csv>=1.4.1",
     "idna==3.11",
     "pydantic>=2.12.5",
+    "pytest>=9.0.2",
     "requests==2.32.5",
     "requests-futures==1.0.2",
     "tomli>=2.4.0",
     "urllib3==2.6.3",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
 
 [tool.ruff]
 line-length = 88
@@ -34,6 +39,7 @@ select = [
     "ANN",  # flake8-annotations
     "PL",   # Pylint rules (maximizes pylint coverage)
 ]
+per-file-ignores = { "tests/**" = ["ANN", "PLR2004"] }
 
 [tool.ruff.format]
 quote-style = "double"
@@ -41,3 +47,8 @@ indent-style = "space"
 
 [tool.ty.environment]
 target-version = "3.14"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15.7",
+]
