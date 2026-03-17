@@ -7,7 +7,12 @@ from requests import HTTPError, RequestException, Response
 from requests_futures.sessions import FuturesSession
 
 from config import user_agent
-from processing.constants import ERR_MIN_THRESHOLD, PRINT_INFORMATIONAL_ERR_LIMITS
+from processing.constants import (
+    ERR_MIN_THRESHOLD,
+    ERROR_LIMIT_DEFAULT,
+    ERROR_TIMER_BUFFER_SECONDS,
+    PRINT_INFORMATIONAL_ERR_LIMITS,
+)
 
 MAX_WORKERS = 160
 session = FuturesSession(max_workers=MAX_WORKERS)
@@ -38,16 +43,18 @@ def create_futures(urls: list[str]) -> list[Future[Response]]:
 
 def create_history_futures(urls: list[str]) -> list[Future]:
     # Gets future of https://developers.eveonline.com/api-explorer#/operations/GetMarketsRegionIdHistory
-    all_futures: list[Future] = []
+    all_futures: list[Future[Response]] = []
     history_session = FuturesSession(max_workers=MAX_WORKERS)
     history_session.headers.update(user_agent)
     for url in urls:
-        future: Future = history_session.get(url)
+        future: Future[Response] = history_session.get(url)
         all_futures.append(future)
     return all_futures
 
 
-def create_post_futures(urls_json_headers: list[UrlJsonHeader]) -> list[Future]:
+def create_post_futures(
+    urls_json_headers: list[UrlJsonHeader],
+) -> list[Future[Response]]:
     all_futures: list[Future] = []
     for url_json_header in urls_json_headers:
         url: str = url_json_header.url
@@ -56,7 +63,7 @@ def create_post_futures(urls_json_headers: list[UrlJsonHeader]) -> list[Future]:
         #   in `create_name_urls_json_headers` in `api.urls`
         ids: list[int] = url_json_header.ids
         header: dict[str, str] = url_json_header.header
-        future: Future = session.post(url, json=ids, headers=header)
+        future: Future[Response] = session.post(url, json=ids, headers=header)
         all_futures.append(future)
     return all_futures
 
@@ -64,7 +71,7 @@ def create_post_futures(urls_json_headers: list[UrlJsonHeader]) -> list[Future]:
 def pause_futures(error_timer: int, message: str) -> None:
     if error_timer != 0:
         logging.warning(message)
-        sleep(error_timer + 1)
+        sleep(error_timer + ERROR_TIMER_BUFFER_SECONDS)
 
 
 # Generic function that resolves futures results with some error handling that returns
@@ -83,7 +90,10 @@ def futures_results(futures: list[Future[Response]]) -> FutureResults:
             result.raise_for_status()
             if "x-esi-error-limit-remain" in result.headers:
                 error_limit_remaining: str = result.headers["x-esi-error-limit-remain"]
-                if error_limit_remaining != "100" and PRINT_INFORMATIONAL_ERR_LIMITS:
+                if (
+                    error_limit_remaining != ERROR_LIMIT_DEFAULT
+                    and PRINT_INFORMATIONAL_ERR_LIMITS
+                ):
                     error_limit_time_to_reset: str = result.headers[
                         "x-esi-error-limit-reset"
                     ]
