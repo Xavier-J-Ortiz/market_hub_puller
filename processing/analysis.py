@@ -1,5 +1,5 @@
 import re
-from typing import Any, cast
+from typing import Any, Optional, cast
 
 import processing.csv as df
 import processing.deserialize as ds
@@ -22,16 +22,16 @@ def min_max_source_data(
     regional_min_max: Regional_min_max,
 ) -> None:
     regional_min_max[region] = {}
-    pos_infinity = float("inf")
-    neg_infinity = float("-inf")
+    pos_infinity: Optional[float] = float("inf")
+    neg_infinity: Optional[float] = float("-inf")
     min_sell_order = {}
     max_buy_order = {}
     orders: list[Order] = global_orders[region].all_orders_data
     for order in orders:
         type_id = order["type_id"]
         if type_id not in regional_min_max[region]:
-            min_sell_order[type_id] = pos_infinity
-            max_buy_order[type_id] = neg_infinity
+            min_sell_order[type_id]: Optional[float] = pos_infinity
+            max_buy_order[type_id]: Optional[float] = neg_infinity
             regional_min_max[region][type_id] = cast(dict[str, Any], {})
             regional_min_max[region][type_id]["name"] = ds.find_name(
                 type_id,
@@ -80,19 +80,19 @@ def process_filtered_data(
                 #   dataclass or typed dicts.
                 hsv: float = float(regional_min_max[region][type_id]["min"]["price"])
             else:
-                hsv: float = float("inf")
+                hsv: Optional[float] = float("inf")
             if "max" in regional_min_max[region][type_id]:
                 hbv: float = float(regional_min_max[region][type_id]["max"]["price"])
             else:
-                hbv: float = float("-inf")
+                hbv: Optional[float] = float("-inf")
             if "min" in regional_min_max["Jita"][type_id]:
                 jsv: float = float(regional_min_max["Jita"][type_id]["min"]["price"])
             else:
-                jsv: float = float("nan")
+                jsv: Optional[float] = float("nan")
             if "max" in regional_min_max["Jita"][type_id]:
                 jbv: float = float(regional_min_max["Jita"][type_id]["max"]["price"])
             else:
-                jbv = float("nan")
+                jbv: Optional[float] = float("nan")
             # With price data collected, process it to useful data.
             name = cast(str, regional_min_max["Jita"][type_id]["name"])
             diff = hsv - jsv

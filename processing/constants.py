@@ -10,6 +10,8 @@ CHUNK_LENGTH = 30000
 # set true to see informational error information for troubleshooting only.
 PRINT_INFORMATIONAL_ERR_LIMITS = False
 ERR_MIN_THRESHOLD = 10
+ERROR_TIMER_BUFFER_SECONDS = 1
+ERROR_LIMIT_DEFAULT = "100"
 
 
 def find_last_downtime() -> float:
