@@ -6,15 +6,15 @@ from time import sleep
 from requests import HTTPError, RequestException, Response
 from requests_futures.sessions import FuturesSession
 
-from config import user_agent
-from processing.constants import (
+from config import (
     ERR_MIN_THRESHOLD,
     ERROR_LIMIT_DEFAULT,
     ERROR_TIMER_BUFFER_SECONDS,
+    MAX_WORKERS,
     PRINT_INFORMATIONAL_ERR_LIMITS,
+    user_agent,
 )
 
-MAX_WORKERS = 160
 session = FuturesSession(max_workers=MAX_WORKERS)
 session.headers.update(user_agent)
 
