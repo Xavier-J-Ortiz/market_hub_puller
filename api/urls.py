@@ -1,4 +1,4 @@
-from api.client import UrlJsonHeader
+from api.client import DEFAULT_POST_HEADER, UrlJsonHeader
 from processing.constants import ID_SEGMENT_CHUNK, GlobalOrders, Order
 
 
@@ -26,24 +26,16 @@ def create_item_history_url(region: str, item_id: int) -> str:
 def create_name_urls_json_headers(ids: list[int]) -> list[UrlJsonHeader]:
     ujhs: list[UrlJsonHeader] = []
     url: str = "https://esi.evetech.net/latest/universe/names/?datasource=tranquility"
-    # TODO: `header` can probably be de-duplicated. If we know we are create post
-    #   futures, we don't need to add the headers to every URL. Changes need to be made
-    #   in `api.client.py` as well.
-    header: dict[str, str] = {
-        "accept": "application/json",
-        "Content-Type": "application/json",
-        "Cache-Control": "no-cache",
-    }
     if len(ids) <= ID_SEGMENT_CHUNK:
         id_segment: list[int] = ids
-        ujhs.append(UrlJsonHeader(url=url, ids=id_segment, header=header))
+        ujhs.append(UrlJsonHeader(url=url, ids=id_segment, header=DEFAULT_POST_HEADER))
         return ujhs
     segmented_ids: list[list[int]] = []
     for i in range(0, len(ids), ID_SEGMENT_CHUNK):
         end: int = ID_SEGMENT_CHUNK + i
         segmented_ids.append(ids[i:end])
     for id_segment in segmented_ids:
-        ujhs.append(UrlJsonHeader(url=url, ids=id_segment, header=header))
+        ujhs.append(UrlJsonHeader(url=url, ids=id_segment, header=DEFAULT_POST_HEADER))
 
     return ujhs
 

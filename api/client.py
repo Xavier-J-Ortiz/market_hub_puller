@@ -15,6 +15,12 @@ from config import (
     user_agent,
 )
 
+DEFAULT_POST_HEADER: dict[str, str] = {
+    "accept": "application/json",
+    "Content-Type": "application/json",
+    "Cache-Control": "no-cache",
+}
+
 session = FuturesSession(max_workers=MAX_WORKERS)
 session.headers.update(user_agent)
 
@@ -58,9 +64,6 @@ def create_post_futures(
     all_futures: list[Future] = []
     for url_json_header in urls_json_headers:
         url: str = url_json_header.url
-        # TODO: `header` can probably be de-duplicated. If we know we are create post
-        #   futures, we don't need to add the headers to every URL. Needs to be changed
-        #   in `create_name_urls_json_headers` in `api.urls`
         ids: list[int] = url_json_header.ids
         header: dict[str, str] = url_json_header.header
         future: Future[Response] = session.post(url, json=ids, headers=header)
