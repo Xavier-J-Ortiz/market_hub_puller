@@ -146,14 +146,10 @@ def add_history_to_processed_data(
                 for history in global_orders[region].all_order_history
                 if history.type_id == type_id
             ),
-            [],
+            None,
         )
         actionable_data[region][name]["history"] = item_history
     else:
-        # TODO: Maybe change this empty list with a nil, or something else? The type is
-        #   of ItemHistory. You could extend this type to have the name of the item also
-        #   within it and perhaps this logic could be streamlined/simplified a little
-        #   bit.
         actionable_data[region][name]["history"] = None
 
 
