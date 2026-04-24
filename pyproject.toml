@@ -39,7 +39,7 @@ select = [
     "ANN",  # flake8-annotations
     "PL",   # Pylint rules (maximizes pylint coverage)
 ]
-per-file-ignores = { "tests/**" = ["ANN", "PLR2004"] }
+per-file-ignores = { "tests/**" = ["ANN", "PLR2004"], "processing/constants.py" = ["PLW0127"] }
 
 [tool.ruff.format]
 quote-style = "double"

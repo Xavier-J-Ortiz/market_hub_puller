@@ -3,15 +3,27 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any, TypedDict
 
-from config import region_hubs
+from config import (
+    CHUNK_LENGTH,
+    DATA_DIR,
+    ID_SEGMENT_CHUNK,
+    INCLUDE_HISTORY,
+    LOWEST_MARGIN,
+    MIN_VALUE_OF_ITEM_OF_INTEREST,
+    PROCESS_DATA,
+    SAVE_PROCESSED_DATA,
+    SAVE_SOURCE_DATA,
+    region_hubs,
+)
 
-INCLUDE_HISTORY = True
-CHUNK_LENGTH = 30000
-# set true to see informational error information for troubleshooting only.
-PRINT_INFORMATIONAL_ERR_LIMITS = False
-ERR_MIN_THRESHOLD = 10
-ERROR_TIMER_BUFFER_SECONDS = 1
-ERROR_LIMIT_DEFAULT = "100"
+CHUNK_LENGTH = CHUNK_LENGTH
+ID_SEGMENT_CHUNK = ID_SEGMENT_CHUNK
+INCLUDE_HISTORY = INCLUDE_HISTORY
+MIN_VALUE_OF_ITEM_OF_INTEREST = MIN_VALUE_OF_ITEM_OF_INTEREST
+LOWEST_MARGIN = LOWEST_MARGIN
+PROCESS_DATA = PROCESS_DATA
+SAVE_PROCESSED_DATA = SAVE_PROCESSED_DATA
+SAVE_SOURCE_DATA = SAVE_SOURCE_DATA
 
 
 def find_last_downtime() -> float:
@@ -27,10 +39,6 @@ def find_last_downtime() -> float:
 
 
 LAST_DOWNTIME = find_last_downtime()
-ID_SEGMENT_CHUNK: int = 1000
-MIN_VALUE_OF_ITEM_OF_INTEREST = 70000000
-LOWEST_MARGIN = 0.2
-DATA_DIR = "./market_data"
 
 
 def is_saved_market_history_data_stale() -> dict[str, bool]:
@@ -47,15 +55,7 @@ def is_saved_market_history_data_stale() -> dict[str, bool]:
 
 
 ARE_SAVED_MARKETS_STALE: dict[str, bool] = is_saved_market_history_data_stale()
-# Both PROCESS_DATA and SAVE_PROCESSED_DATA are necessary so that future implementations
-#   can utilized the processed data, and independently decide to save it as a CSV
-PROCESS_DATA = True  # Does comparison calculation filters
-# To save processed data, you need to to save processed data in a CSV, both PROCESS_DATA
-#   and SAVE_PROCESSED_DATA need to be True
-SAVE_PROCESSED_DATA = True  # Save processed data
-SAVE_SOURCE_DATA = True
 
-# TODO: Determine if these make sense to move to dataclasses or datatypes
 Actionable_data = dict[str, dict[str, Any]]
 Regional_actionable_data = dict[str, Actionable_data]
 Regional_min_max = dict[str, dict[int, dict[str, Any]]]
