@@ -1,7 +1,8 @@
 import csv
 import gzip
+from dataclasses import dataclass
 
-from processing.csv import data_to_csv_gz
+from processing.csv import _to_dict, data_to_csv_gz
 
 
 def test_data_to_csv_gz_creates_file(tmp_path):
@@ -55,3 +56,39 @@ def test_data_to_csv_gz_handles_dict_input(tmp_path):
 
     assert len(rows) == 2
     assert rows[0]["name"] == "Tritanium"
+
+
+def test_to_dict_handles_dict():
+    """Verify _to_dict handles dictionary input."""
+    result = _to_dict({"key": "value"})
+    assert result == {"key": "value"}
+
+
+def test_to_dict_handles_dataclass():
+    """Verify _to_dict converts dataclass to dict."""
+    @dataclass
+    class TestData:
+        name: str
+        id: int
+
+    data = TestData(name="Tritanium", id=34)
+    result = _to_dict(data)
+
+    assert result == {"name": "Tritanium", "id": 34}
+
+
+def test_to_dict_handles_nested_structure():
+    """Verify _to_dict handles nested dataclasses."""
+    @dataclass
+    class Inner:
+        value: int
+
+    @dataclass
+    class Outer:
+        name: str
+        inner: Inner
+
+    data = Outer(name="Test", inner=Inner(value=42))
+    result = _to_dict(data)
+
+    assert result == {"name": "Test", "inner": {"value": 42}}
