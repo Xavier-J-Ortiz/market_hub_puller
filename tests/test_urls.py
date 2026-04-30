@@ -87,7 +87,7 @@ def test_create_item_ids():
 
     result = create_item_ids("Jita", global_orders)
 
-assert len(result) == 2
+    assert len(result) == 2
     assert 34 in result
     assert 35 in result
 
