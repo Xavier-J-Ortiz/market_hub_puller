@@ -111,7 +111,9 @@ def create_actionable_data() -> Regional_actionable_data:
             path = f"{DATA_DIR}/source_data"
             filename = f"{region}_all_orders_data_source.csv.gz"
             data = global_orders[region].all_orders_data
-            fields = list(data[0].keys())
+            fields = [
+                k for k in data[0] if k not in ("volume_remain", "volume_total")
+            ]
             data_to_csv_gz(data, fields, filename, path)
 
             filename = f"{region}_active_order_names_source.csv.gz"

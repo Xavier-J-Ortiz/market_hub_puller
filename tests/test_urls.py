@@ -5,6 +5,7 @@ from api.urls import (
     create_item_history_url,
     create_item_ids,
     create_name_urls_json_headers,
+    create_type_info_urls,
 )
 from processing.constants import ID_SEGMENT_CHUNK, GlobalOrders, RegionOrdersData
 
@@ -86,6 +87,17 @@ def test_create_item_ids():
 
     result = create_item_ids("Jita", global_orders)
 
-    assert len(result) == 2
+assert len(result) == 2
     assert 34 in result
     assert 35 in result
+
+
+def test_create_type_info_urls_format():
+    """Verify type info URLs are correctly formatted."""
+    urls = create_type_info_urls([34, 35])
+
+    assert len(urls) == 2
+    assert "esi.evetech.net" in urls[0]
+    assert "universe/types/34" in urls[0]
+    assert "datasource=tranquility" in urls[0]
+    assert "universe/types/35" in urls[1]

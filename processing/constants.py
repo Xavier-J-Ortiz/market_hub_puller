@@ -86,6 +86,16 @@ class NameData:
     category: str
     id: int
     name: str
+    volume: float | None = None
+    packaged_volume: float | None = None
+
+
+@dataclass
+class VolumetricData:
+    # Volumetric data fetched from https://developers.eveonline.com/api-explorer#/operations/GetUniverseTypeId
+    type_id: int
+    volume: float | None = None
+    packaged_volume: float | None = None
 
 
 class Order(TypedDict):
