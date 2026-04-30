@@ -56,6 +56,8 @@ def deserialize_order_items_p2_onwards(
     deserialized_results: list[Order],
     func: Callable[[str, int], str],
 ) -> tuple[list[Order], list[str]]:
+    if total_pages <= 1:
+        return deserialized_results, []
     urls = []
     chunk_length = CHUNK_LENGTH
     for page in range(2, total_pages + 1):
@@ -64,6 +66,7 @@ def deserialize_order_items_p2_onwards(
             urls.append([])
         # urls is a list of url lists of length `chunk_length`.
         urls[(page - 2) // chunk_length].append(url)
+    fr = None
     for chunk_urls in urls:
         pages_futures = cl.create_futures(chunk_urls)
         fr = cl.futures_results(pages_futures)
@@ -85,7 +88,7 @@ def deserialize_order_items_p2_onwards(
                 f"Sleep redo order fetch due to error timer being {fr.error_timer} \
                         seconds",
             )
-    return deserialized_results, fr.redo_urls
+    return deserialized_results, fr.redo_urls if fr else []
 
 
 # Deserializes resulting JSON from futures, used in `get_source_data`
