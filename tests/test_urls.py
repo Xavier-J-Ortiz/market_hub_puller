@@ -3,9 +3,10 @@ from api.urls import (
     create_active_items_url,
     create_all_order_url,
     create_item_history_url,
+    create_item_ids,
     create_name_urls_json_headers,
 )
-from processing.constants import ID_SEGMENT_CHUNK
+from processing.constants import ID_SEGMENT_CHUNK, GlobalOrders, RegionOrdersData
 
 
 def test_create_all_order_url_format():
@@ -66,3 +67,25 @@ def test_create_name_urls_json_headers_header():
     assert "accept" in header
     assert "Content-Type" in header
     assert header["Content-Type"] == "application/json"
+
+
+def test_create_item_ids():
+    """Verify create_item_ids extracts unique type_ids from orders."""
+    orders = [
+        {"type_id": 34, "price": 100.0},
+        {"type_id": 35, "price": 200.0},
+        {"type_id": 34, "price": 150.0},
+    ]
+    global_orders: GlobalOrders = {
+        "Jita": RegionOrdersData(
+            all_orders_data=orders,
+            active_order_names=[],
+            all_order_history=[],
+        )
+    }
+
+    result = create_item_ids("Jita", global_orders)
+
+    assert len(result) == 2
+    assert 34 in result
+    assert 35 in result
