@@ -3,12 +3,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from processing.constants import NameData
+from processing.constants import NameData, VolumetricData
 from processing.deserialize import (
     deserialize_order_items,
     deserialize_order_items_p2_onwards,
     deserialize_order_names,
+    deserialize_volumetric_data,
     find_name,
+    update_names_with_volumetric_data,
 )
 
 
@@ -101,3 +103,134 @@ class TestDeserializeOrderNames:
         assert len(result) == 2
         assert result[0].name == "Tritanium"
         assert result[1].name == "Pyerite"
+
+
+class TestDeserializeVolumetricData:
+    def test_returns_empty_dict_for_empty_ids(self):
+        """Verify returns empty dict when ids list is empty."""
+        result = deserialize_volumetric_data([])
+        assert result == {}
+
+    @patch("processing.deserialize.cl")
+    def test_parses_esi_response_correctly(self, mock_cl):
+        """Verify correctly parses ESI type info response."""
+        mock_response = MagicMock()
+        mock_response.text = json.dumps({
+            "type_id": 34,
+            "volume": 0.01,
+            "packaged_volume": 0.01,
+        })
+
+        mock_fr = MagicMock()
+        mock_fr.results = [mock_response]
+        mock_fr.redo_urls = []
+        mock_fr.error_timer = 0
+        mock_cl.create_futures.return_value = [MagicMock()]
+        mock_cl.futures_results.return_value = mock_fr
+
+        result = deserialize_volumetric_data([34])
+
+        assert 34 in result
+        assert result[34].type_id == 34
+        assert result[34].volume == 0.01
+        assert result[34].packaged_volume == 0.01
+
+    @patch("processing.deserialize.cl")
+    def test_handles_json_decode_error(self, mock_cl):
+        """Verify gracefully handles invalid JSON response."""
+        mock_response = MagicMock()
+        mock_response.text = "not valid json"
+
+        mock_fr = MagicMock()
+        mock_fr.results = [mock_response]
+        mock_fr.redo_urls = []
+        mock_fr.error_timer = 0
+        mock_cl.create_futures.return_value = [MagicMock()]
+        mock_cl.futures_results.return_value = mock_fr
+
+        result = deserialize_volumetric_data([34])
+
+        assert result == {}
+
+    @patch("processing.deserialize.cl")
+    def test_handles_redo_urls(self, mock_cl):
+        """Verify correctly handles retry requests for failed URLs."""
+        mock_response1 = MagicMock()
+        mock_response1.text = json.dumps({
+            "type_id": 34,
+            "volume": 0.01,
+            "packaged_volume": 0.01,
+        })
+        mock_response2 = MagicMock()
+        mock_response2.text = json.dumps({
+            "type_id": 35,
+            "volume": 0.02,
+            "packaged_volume": 0.02,
+        })
+
+        mock_fr = MagicMock()
+        mock_fr.results = [mock_response1]
+        mock_fr.redo_urls = ["http://retry-url"]
+        mock_fr.error_timer = 0
+        mock_cl.create_futures.return_value = [MagicMock()]
+        mock_cl.futures_results.side_effect = [
+            mock_fr,
+            MagicMock(results=[mock_response2], redo_urls=[], error_timer=0),
+        ]
+
+        result = deserialize_volumetric_data([34, 35])
+
+        assert 34 in result
+        assert 35 in result
+        assert result[35].volume == 0.02
+
+
+class TestUpdateNamesWithVolumetricData:
+    def test_updates_names_with_volume_data(self):
+        """Verify names are updated with volumetric data when type_id matches."""
+        names = [
+            NameData(category="inventory_type", id=34, name="Tritanium"),
+            NameData(category="inventory_type", id=35, name="Pyerite"),
+        ]
+        volumetric_data = {
+            34: VolumetricData(type_id=34, volume=0.01, packaged_volume=0.01),
+        }
+
+        result = update_names_with_volumetric_data(names, volumetric_data)
+
+        assert result[0].volume == 0.01
+        assert result[0].packaged_volume == 0.01
+        assert result[1].volume is None
+        assert result[1].packaged_volume is None
+
+    def test_returns_original_names_when_no_volumetric_data(self):
+        """Verify returns original names when no volumetric data provided."""
+        names = [
+            NameData(category="inventory_type", id=34, name="Tritanium"),
+        ]
+        volumetric_data: dict[int, VolumetricData] = {}
+
+        result = update_names_with_volumetric_data(names, volumetric_data)
+
+        assert len(result) == 1
+        assert result[0].name == "Tritanium"
+        assert result[0].volume is None
+        assert result[0].packaged_volume is None
+
+    def test_handles_mixed_case(self):
+        """Verify handles mixed case where some items have volume data."""
+        names = [
+            NameData(category="inventory_type", id=34, name="Tritanium"),
+            NameData(category="inventory_type", id=35, name="Pyerite"),
+            NameData(category="inventory_type", id=36, name="Mexallon"),
+        ]
+        volumetric_data = {
+            34: VolumetricData(type_id=34, volume=0.01, packaged_volume=0.01),
+            36: VolumetricData(type_id=36, volume=0.5, packaged_volume=0.5),
+        }
+
+        result = update_names_with_volumetric_data(names, volumetric_data)
+
+        assert result[0].volume == 0.01
+        assert result[1].volume is None
+        assert result[2].volume == 0.5

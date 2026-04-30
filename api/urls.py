@@ -52,3 +52,12 @@ def create_item_ids(region: str, global_orders: GlobalOrders) -> list[int]:
                 f"{type(order.type_id)}"
             )
     return list(region_item_ids)
+
+
+def create_type_info_urls(ids: list[int]) -> list[str]:
+    url_base = "https://esi.evetech.net/latest/universe/types/"
+    url_end = "/?datasource=tranquility"
+    urls: list[str] = []
+    for type_id in ids:
+        urls.append(url_base + str(type_id) + url_end)
+    return urls

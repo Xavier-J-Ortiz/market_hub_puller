@@ -13,6 +13,7 @@ from processing.constants import (
     NameData,
     Order,
     RegionOrdersData,
+    VolumetricData,
 )
 
 
@@ -89,6 +90,79 @@ def deserialize_order_items_p2_onwards(
                         seconds",
             )
     return deserialized_results, fr.redo_urls if fr else []
+
+
+def deserialize_volumetric_data(ids: list[int]) -> dict[int, VolumetricData]:
+    volumetric_data: dict[int, VolumetricData] = {}
+    if not ids:
+        return volumetric_data
+    urls = u.create_type_info_urls(ids)
+    chunk_length = CHUNK_LENGTH
+    chunked_urls: list[list[str]] = []
+    for i in range(0, len(urls), chunk_length):
+        chunked_urls.append(urls[i : i + chunk_length])
+    for chunk in chunked_urls:
+        futures = cl.create_futures(chunk)
+        fr = cl.futures_results(futures)
+        for result in fr.results:
+            try:
+                data = json.loads(result.text)
+                type_id = data.get("type_id")
+                if type_id:
+                    volumetric_data[type_id] = VolumetricData(
+                        type_id=type_id,
+                        volume=data.get("volume"),
+                        packaged_volume=data.get("packaged_volume"),
+                    )
+            except json.JSONDecodeError:
+                continue
+        cl.pause_futures(
+            fr.error_timer,
+            "Sleep volumetric data fetch due to error timer being "
+            f"{fr.error_timer} seconds",
+        )
+        while len(fr.redo_urls) != 0:
+            futures = cl.create_futures(fr.redo_urls)
+            fr = cl.futures_results(futures)
+            for result in fr.results:
+                try:
+                    data = json.loads(result.text)
+                    type_id = data.get("type_id")
+                    if type_id:
+                        volumetric_data[type_id] = VolumetricData(
+                            type_id=type_id,
+                            volume=data.get("volume"),
+                            packaged_volume=data.get("packaged_volume"),
+                        )
+                except json.JSONDecodeError:
+                    continue
+            cl.pause_futures(
+                fr.error_timer,
+                "Sleep volumetric redo fetch due to error timer being "
+                f"{fr.error_timer} seconds",
+            )
+    return volumetric_data
+
+
+def update_names_with_volumetric_data(
+    names: list[NameData], volumetric_data: dict[int, VolumetricData]
+) -> list[NameData]:
+    updated_names: list[NameData] = []
+    for name in names:
+        if name.id in volumetric_data:
+            vol_data = volumetric_data[name.id]
+            updated_names.append(
+                NameData(
+                    category=name.category,
+                    id=name.id,
+                    name=name.name,
+                    volume=vol_data.volume,
+                    packaged_volume=vol_data.packaged_volume,
+                )
+            )
+        else:
+            updated_names.append(name)
+    return updated_names
 
 
 # Deserializes resulting JSON from futures, used in `get_source_data`
@@ -171,5 +245,9 @@ def get_source_data(region: str, global_orders: GlobalOrders) -> None:
     global_orders[region].all_orders_data = clean_regional_order_data_and_names[0]
     global_orders[region].active_order_names = clean_regional_order_data_and_names[1]
     region_item_ids = clean_regional_order_data_and_names[2]
+    volumetric_data = deserialize_volumetric_data(region_item_ids)
+    global_orders[region].active_order_names = update_names_with_volumetric_data(
+        global_orders[region].active_order_names, volumetric_data
+    )
     if INCLUDE_HISTORY:
         c.get_source_history_data(region, global_orders, region_item_ids)
