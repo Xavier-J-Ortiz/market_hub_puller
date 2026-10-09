@@ -1,0 +1,54 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  lint-and-typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.3.0
+        with:
+          enable-cache: true
+          python-version: 3.15
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Run Pylint
+        run: uvx pylint $(git ls-files '*.py')
+
+      - name: Run Mypy
+        run: uvx mypy .
+
+      - name: Run Flake8
+        run: uvx flake8 .
+
+      - name: Check formatting with Black
+        run: uvx black --check .
+
+  test:
+    needs: lint-and-typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.3.0
+        with:
+          enable-cache: true
+          python-version: 3.15
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Run tests
+        run: uv pytest
