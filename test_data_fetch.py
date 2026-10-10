@@ -8,6 +8,8 @@ import respx
 
 from fetch_parse import fetch_region_orders, parse_region_orders, region_orders_adapter
 
+mock_page_length = 2
+
 
 @pytest.fixture
 def region_orders_1() -> str:
@@ -57,6 +59,7 @@ def region_orders_2() -> str:
 
 @pytest.fixture
 def mock_header() -> dict[str, str]:
+    """Mock Header for mock responses."""
     return {
         "date": "Sat, 10 Oct 2026 14:43:15 GMT",
         "content-type": "application/json; charset=UTF-8",
@@ -124,7 +127,7 @@ def test_fetch_region_order_data(
     )
 
     results = fetch_region_orders(region_id)
-    assert len(results) == 2
+    assert len(results) == mock_page_length
 
     # page 1 results
     assert results[0].text == region_orders_1

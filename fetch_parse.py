@@ -3,8 +3,6 @@
 This module targets specific endpoints to retrieve data for the application.
 """
 
-import json
-
 import httpx
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
