@@ -11,8 +11,8 @@ dependencies = [
     "respx>=0.23.1",
 ]
 
-[tool.ruff]
-line-length = 100
+[tool.uv]
+no-binary-package = ["pydantic-core"]
 
 [dependency-groups]
 dev = [
@@ -20,6 +20,9 @@ dev = [
     "ruff",
     "basedpyright",
 ]
+
+[tool.ruff]
+line-length = 100
 
 [tool.ruff.lint]
 select = [

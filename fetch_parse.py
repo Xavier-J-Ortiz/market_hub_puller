@@ -3,6 +3,8 @@
 This module targets specific endpoints to retrieve data for the application.
 """
 
+import json
+
 import httpx
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
@@ -28,20 +30,29 @@ type RegionOrders = list[OrderData]
 region_orders_adapter = TypeAdapter(RegionOrders)
 
 
-def fetch_region_orders(region_id: int) -> str:
+def fetch_region_orders(region_id: int) -> list[httpx.Response]:
     """Fetch json string from the regional market API."""
-    url = f"https://esi.evetech.net/markets/{region_id}/orders"
-    request = httpx.get(url)
-    return request.text
+    requests: list[httpx.Response] = []
+    page = 1
+    url = f"https://esi.evetech.net/markets/{region_id}/orders?page={page}"
+    request: httpx.Response = httpx.get(url)
+    requests.append(request)
+    pages = int(request.headers["x-pages"])
+    for p in range(2, pages + 1):
+        url = f"https://esi.evetech.net/markets/{region_id}/orders?page={p}"
+        request = httpx.get(url)
+        requests.append(request)
+    return requests
 
 
 def parse_region_orders(
-    region_orders: str,
+    region_orders: list[httpx.Response],
 ) -> RegionOrders:
     """Parse json string from fetch_region_orders()."""
-    result: RegionOrders = []
+    answer: RegionOrders = []
     try:
-        result = region_orders_adapter.validate_json(region_orders)
+        for order in region_orders:
+            answer = answer + region_orders_adapter.validate_json(order.text)
     except ValidationError as e:
         print("Invalid data received:", e.json())
-    return result
+    return answer
