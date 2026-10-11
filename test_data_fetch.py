@@ -8,7 +8,8 @@ import respx
 
 from fetch_parse import fetch_region_orders, parse_region_orders, region_orders_adapter
 
-mock_page_length = 2
+MOCK_PAGE_LENGTH = 2
+REGION_ID: int = 10000002
 
 
 @pytest.fixture
@@ -97,19 +98,13 @@ def mock_header() -> dict[str, str]:
     }
 
 
-@respx.mock
-def test_fetch_region_order_data(
-    region_orders_1: str, region_orders_2: str, mock_header: dict[str, str]
-):
-    """Test fetch_region_orders()."""
-    # system: str = "Jita"
-    # system_id: int = 30000142
-    # region: str = "The Forge"
-    # IDs can be fetched from https://developers.eveonline.com/api-explorer#/operations/PostUniverseIds
-    region_id: int = 10000002
-    # Region orders can be fetched from https://developers.eveonline.com/api-explorer#/operations/PostUniverseIds
-    url_1 = f"https://esi.evetech.net/markets/{region_id}/orders?page=1"
-    url_2 = f"https://esi.evetech.net/markets/{region_id}/orders?page=2"
+@pytest.fixture
+def region_order_routes(
+    region_orders_1, region_orders_2, mock_header
+) -> tuple[respx.Route, respx.Route]:
+    """Return mocked routes for regional market orders."""
+    url_1 = f"https://esi.evetech.net/markets/{REGION_ID}/orders?page=1"
+    url_2 = f"https://esi.evetech.net/markets/{REGION_ID}/orders?page=2"
 
     route_1 = respx.get(url_1).mock(
         return_value=httpx.Response(
@@ -125,9 +120,23 @@ def test_fetch_region_order_data(
             content=gzip.compress(region_orders_2.encode("UTF-8")),
         )
     )
+    return route_1, route_2
 
-    results = fetch_region_orders(region_id)
-    assert len(results) == mock_page_length
+
+@respx.mock
+def test_fetch_region_order_data(
+    region_orders_1: str, region_orders_2: str, region_order_routes: tuple[respx.Route, respx.Route]
+):
+    """Test fetch_region_orders()."""
+    # system: str = "Jita"
+    # system_id: int = 30000142
+    # region: str = "The Forge"
+    # IDs can be fetched from https://developers.eveonline.com/api-explorer#/operations/PostUniverseIds
+    # Region orders can be fetched from https://developers.eveonline.com/api-explorer#/operations/PostUniverseIds
+    route_1, route_2 = region_order_routes
+
+    results = fetch_region_orders(REGION_ID)
+    assert len(results) == MOCK_PAGE_LENGTH
 
     # page 1 results
     assert results[0].text == region_orders_1
@@ -144,27 +153,11 @@ def test_fetch_region_order_data(
 def test_parse_region_order_data(
     region_orders_1: str,
     region_orders_2: str,
-    mock_header: dict[str, str],
+    region_order_routes: tuple[respx.Route, respx.Route],
 ):
     """Test parse_region_orders()."""
-    region_id: int = 10000002
-    url_1 = f"https://esi.evetech.net/markets/{region_id}/orders?page=1"
-    url_2 = f"https://esi.evetech.net/markets/{region_id}/orders?page=2"
-    route_1 = respx.get(url_1).mock(
-        return_value=httpx.Response(
-            200,
-            headers=mock_header,
-            content=gzip.compress(region_orders_1.encode("UTF-8")),
-        )
-    )
-    route_2 = respx.get(url_2).mock(
-        return_value=httpx.Response(
-            200,
-            headers=mock_header,
-            content=gzip.compress(region_orders_2.encode("UTF-8")),
-        )
-    )
-    result = parse_region_orders(fetch_region_orders(region_id))
+    route_1, route_2 = region_order_routes
+    result = parse_region_orders(fetch_region_orders(REGION_ID))
     region_orders = region_orders_adapter.validate_json(
         region_orders_1
     ) + region_orders_adapter.validate_json(region_orders_2)
